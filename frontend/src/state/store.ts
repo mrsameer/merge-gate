@@ -24,6 +24,7 @@ import {
   defaultPosition,
   layoutWorkflow,
   moveWorkflowNode,
+  removeWorkflowNode,
   type NodePositions,
 } from "../canvas/workflowEditing";
 import type { EdgePath, NodeConfig, NodeType, Workflow } from "../canvas/types";
@@ -68,6 +69,7 @@ export interface AppState {
   setWorkflow: (workflow: Workflow, positions?: NodePositions) => void;
   renameWorkflow: (name: string) => void;
   addNode: (type: NodeType, position?: { x: number; y: number }) => void;
+  removeNode: (nodeId: string) => void;
   moveNode: (nodeId: string, position: { x: number; y: number }) => void;
   connectNodes: (source: string, target: string, path: EdgePath) => void;
   updateNode: (
@@ -135,6 +137,21 @@ export const useAppStore = create<AppState>()(
             workflow: result.workflow,
             positions: result.positions,
             selectedNodeId: result.node.id,
+          };
+        }),
+
+      removeNode: (nodeId) =>
+        set((state) => {
+          const result = removeWorkflowNode(
+            state.workflow,
+            state.positions,
+            nodeId,
+          );
+          return {
+            workflow: result.workflow,
+            positions: result.positions,
+            selectedNodeId:
+              state.selectedNodeId === nodeId ? null : state.selectedNodeId,
           };
         }),
 

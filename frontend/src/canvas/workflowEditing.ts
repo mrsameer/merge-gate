@@ -59,6 +59,32 @@ export function moveWorkflowNode(
   return { ...positions, [nodeId]: position };
 }
 
+export function removeWorkflowNode(
+  workflow: Workflow,
+  positions: NodePositions,
+  nodeId: string,
+): { workflow: Workflow; positions: NodePositions } {
+  const nodes = workflow.nodes
+    .filter((node) => node.id !== nodeId)
+    .map((node) => {
+      if (!node.config) return node;
+      const config = { ...node.config };
+      let changed = false;
+      for (const key of ["success_path", "failure_path"] as const) {
+        if (config[key] === nodeId) {
+          config[key] = "";
+          changed = true;
+        }
+      }
+      return changed ? { ...node, config } : node;
+    });
+  const edges = workflow.edges.filter(
+    (edge) => edge.source !== nodeId && edge.target !== nodeId,
+  );
+  const { [nodeId]: _removed, ...remaining } = positions;
+  return { workflow: { ...workflow, nodes, edges }, positions: remaining };
+}
+
 export function connectWorkflowNodes(
   workflow: Workflow,
   source: string,

@@ -86,3 +86,8 @@
   font-size: 0.8rem;
   color: var(--edge-failure, #dc2626);
 }
+
+.inspector-delete-node {
+  color: var(--edge-failure, #dc2626);
+  border-color: var(--edge-failure, #dc2626);
+}

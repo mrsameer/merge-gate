@@ -98,6 +98,7 @@ function NodeSettingsEditor({ node }: { node: WorkflowNode }) {
   const nodes = useAppStore((state) => state.workflow.nodes);
   const updateNode = useAppStore((state) => state.updateNode);
   const connectNodes = useAppStore((state) => state.connectNodes);
+  const removeNode = useAppStore((state) => state.removeNode);
 
   const updateConfig = <K extends keyof NodeConfig>(
     key: K,
@@ -137,6 +138,15 @@ function NodeSettingsEditor({ node }: { node: WorkflowNode }) {
           }
         />
       </label>
+
+      <button
+        type="button"
+        className="inspector-delete-node"
+        onClick={() => removeNode(node.id)}
+        aria-label={`Delete node ${node.name}`}
+      >
+        Delete node
+      </button>
 
       {node.type === "Agent" && (
         <>
