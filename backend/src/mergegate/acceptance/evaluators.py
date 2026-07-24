@@ -21,6 +21,7 @@ evaluates criteria it is asked to evaluate.
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 
 from mergegate.acceptance.commands import run_command
 from mergegate.models.contract import Criterion
@@ -39,8 +40,9 @@ _DEFAULT_COMMANDS: dict[CheckStep, str] = {
     CheckStep.LINT: "uv run ruff check .",
     CheckStep.EXISTING_TESTS: "uv run pytest tests -q",
     CheckStep.NEW_TESTS: "uv run pytest tests -q",
-    CheckStep.MIGRATION: "uv run python -c \"pass\"",
+    CheckStep.MIGRATION: 'uv run python -c "pass"',
     CheckStep.API_CONTRACT: "uv run pytest tests -q -k openapi",
+    CheckStep.ARCHITECTURE: "uv run lint-imports",
 }
 
 
@@ -211,6 +213,189 @@ def evaluate_api_contract(criterion: Criterion, workspace: str) -> CheckResult:
     return _run_command_criterion(criterion, workspace, CheckStep.API_CONTRACT)
 
 
+def _required_paths(criterion: Criterion) -> list[str]:
+    """The paths a required-file / protected-files criterion is scoped to.
+
+    Prefers an explicit ``params["paths"]`` list, falling back to the
+    criterion's `source_paths` (the files the criterion was grounded in).
+    """
+    params = criterion.params or {}
+    paths = params.get("paths")
+    if paths:
+        return [str(p) for p in paths]
+    return list(criterion.source_paths)
+
+
+def _synthetic_result(
+    criterion: Criterion, step: CheckStep, passed: bool, stdout: str, stderr: str
+) -> CheckResult:
+    """A `CheckResult` for a filesystem-only check that ran no subprocess.
+
+    File-existence checks (required-file, protected-files) are pure functions
+    of recorded worktree state (Principle II), so their exit code is synthesized
+    (``0`` pass / ``1`` fail) rather than captured from a command.
+    """
+    return CheckResult(
+        criterion_id=criterion.id,
+        step=step,
+        passed=passed,
+        exit_code=0 if passed else 1,
+        stdout=stdout,
+        stderr=stderr,
+        duration_ms=0,
+    )
+
+
+def evaluate_required_file(criterion: Criterion, workspace: str) -> CheckResult:
+    """A required file or feature must exist (FR-001c).
+
+    Passes only when every scoped path (``params["paths"]`` or the criterion's
+    `source_paths`) exists under `workspace`. A criterion that names no paths
+    cannot be satisfied and fails, so an empty contract never passes silently.
+    """
+    root = Path(workspace)
+    paths = _required_paths(criterion)
+    if not paths:
+        return _synthetic_result(
+            criterion,
+            CheckStep.REQUIRED_FILE,
+            passed=False,
+            stdout="",
+            stderr="no required paths configured",
+        )
+    missing = [path for path in paths if not (root / path).exists()]
+    present = [path for path in paths if path not in missing]
+    return _synthetic_result(
+        criterion,
+        CheckStep.REQUIRED_FILE,
+        passed=not missing,
+        stdout="present: " + ", ".join(present),
+        stderr=("missing: " + ", ".join(missing)) if missing else "",
+    )
+
+
+def _git_changed_files(workspace: str) -> tuple[bool, set[str]]:
+    """Files changed in `workspace` per ``git status --porcelain``.
+
+    Returns ``(is_git_repo, changed_paths)``. Untracked, staged, and unstaged
+    changes (including renames' destinations) all count as "changed".
+    """
+    result = run_command(
+        ["git", "status", "--porcelain", "--untracked-files=all"], cwd=workspace
+    )
+    if result.timed_out or result.exit_code != 0:
+        return False, set()
+    changed: set[str] = set()
+    for line in result.stdout.splitlines():
+        entry = line[3:].strip() if len(line) > 3 else ""
+        if not entry:
+            continue
+        # Renames are reported as "old -> new"; the new path is what changed.
+        changed.add(entry.split(" -> ")[-1])
+    return True, changed
+
+
+def evaluate_protected_files(criterion: Criterion, workspace: str) -> CheckResult:
+    """Protected files must not be modified (FR-001c).
+
+    Compares the scoped protected paths (``params["paths"]`` or `source_paths`)
+    against the worktree's real ``git status`` — a deterministic function of
+    recorded state, not the coding agent's report. Passes only when none of the
+    protected paths appear as changed. Fails closed if `workspace` is not a git
+    worktree (the guarantee cannot be verified).
+    """
+    protected = _required_paths(criterion)
+    if not protected:
+        return _synthetic_result(
+            criterion,
+            CheckStep.PROTECTED_FILES,
+            passed=False,
+            stdout="",
+            stderr="no protected paths configured",
+        )
+    is_repo, changed = _git_changed_files(workspace)
+    if not is_repo:
+        return _synthetic_result(
+            criterion,
+            CheckStep.PROTECTED_FILES,
+            passed=False,
+            stdout="",
+            stderr="workspace is not a git worktree; cannot verify",
+        )
+    violated = sorted(path for path in protected if path in changed)
+    return _synthetic_result(
+        criterion,
+        CheckStep.PROTECTED_FILES,
+        passed=not violated,
+        stdout="protected: " + ", ".join(protected),
+        stderr=("modified: " + ", ".join(violated)) if violated else "",
+    )
+
+
+def evaluate_performance(criterion: Criterion, workspace: str) -> CheckResult:
+    """A performance metric must improve against a baseline (FR-001c).
+
+    Runs `criterion.command` (expected to emit a bare number on stdout, e.g. a
+    latency or throughput measurement), then compares the parsed value against
+    ``params["baseline"]``. ``params["direction"]`` selects the sense of
+    "better": ``"lower_is_better"`` (the default, e.g. latency) passes when the
+    observed value is at or below the baseline; ``"higher_is_better"`` (e.g.
+    throughput) passes when it is at or above. A failed/timed-out command, an
+    unparseable number, or a missing baseline fails the check.
+    """
+    command = _command_for(criterion, CheckStep.PERFORMANCE)
+    result = run_command(command, cwd=workspace)
+    if result.timed_out or result.exit_code != 0:
+        return CheckResult(
+            criterion_id=criterion.id,
+            step=CheckStep.PERFORMANCE,
+            passed=False,
+            exit_code=result.exit_code,
+            stdout=result.stdout,
+            stderr=result.stderr,
+            duration_ms=result.duration_ms,
+        )
+
+    params = criterion.params or {}
+    baseline = params.get("baseline")
+    direction = params.get("direction", "lower_is_better")
+    observed = _parse_trailing_percentage(result.stdout)
+
+    passed = False
+    detail = ""
+    if baseline is None:
+        detail = "no baseline configured"
+    elif observed is None:
+        detail = "could not parse a metric from command output"
+    elif direction == "higher_is_better":
+        passed = observed >= float(baseline)
+        detail = f"observed={observed} baseline={baseline} (higher_is_better)"
+    else:
+        passed = observed <= float(baseline)
+        detail = f"observed={observed} baseline={baseline} (lower_is_better)"
+
+    return CheckResult(
+        criterion_id=criterion.id,
+        step=CheckStep.PERFORMANCE,
+        passed=passed,
+        exit_code=result.exit_code,
+        stdout=result.stdout,
+        stderr=result.stderr if passed else (result.stderr + "\n" + detail).strip(),
+        duration_ms=result.duration_ms,
+    )
+
+
+def evaluate_architecture(criterion: Criterion, workspace: str) -> CheckResult:
+    """The implementation must follow the requested architecture (FR-001c).
+
+    Delegates to a conformance command (`criterion.command`, else the step
+    default) — e.g. an import-linter / dependency-rule check — and is
+    exit-code-based like the other command evaluators, keeping the verdict a
+    pure function of recorded command state.
+    """
+    return _run_command_criterion(criterion, workspace, CheckStep.ARCHITECTURE)
+
+
 EVALUATOR_REGISTRY: dict[CheckStep, Evaluator] = {
     CheckStep.BUILD: evaluate_build,
     CheckStep.LINT: evaluate_lint,
@@ -219,10 +404,20 @@ EVALUATOR_REGISTRY: dict[CheckStep, Evaluator] = {
     CheckStep.MIGRATION: evaluate_migration,
     CheckStep.COVERAGE: evaluate_coverage,
     CheckStep.API_CONTRACT: evaluate_api_contract,
+    CheckStep.REQUIRED_FILE: evaluate_required_file,
+    CheckStep.PROTECTED_FILES: evaluate_protected_files,
+    CheckStep.PERFORMANCE: evaluate_performance,
+    CheckStep.ARCHITECTURE: evaluate_architecture,
 }
-"""Maps each ordered pipeline step to its evaluator. `CheckStep.POLICY` is
-intentionally absent — anti-cheat policy is enforced by `acceptance/policy.py`
-(US5), not by a criterion evaluator, per plan.md's module split."""
+"""Maps every FR-001c criterion step to its evaluator (T073).
+
+The first seven steps form the engine's ordered demo pipeline
+(`engine.PIPELINE_ORDER`); ``REQUIRED_FILE``, ``PROTECTED_FILES``,
+``PERFORMANCE``, and ``ARCHITECTURE`` are registered through the same interface
+but sit outside that ordered pipeline, so they extend criterion-type coverage
+without altering the happy-path run. `CheckStep.POLICY` is intentionally absent
+— anti-cheat policy is enforced by `acceptance/policy.py` (US5), not by a
+criterion evaluator, per plan.md's module split."""
 
 
 def register_evaluator(step: CheckStep, evaluator: Evaluator) -> None:

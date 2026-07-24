@@ -20,9 +20,14 @@ const nodeTypes = { role: RoleNode };
 interface GraphCanvasProps {
   workflow: Workflow;
   positions: Record<string, { x: number; y: number }>;
+  onSelectNode?: (nodeId: string) => void;
 }
 
-export function GraphCanvas({ workflow, positions }: GraphCanvasProps) {
+export function GraphCanvas({
+  workflow,
+  positions,
+  onSelectNode,
+}: GraphCanvasProps) {
   const nodes = useMemo(
     () => toFlowNodes(workflow, positions),
     [workflow, positions],
@@ -39,6 +44,7 @@ export function GraphCanvas({ workflow, positions }: GraphCanvasProps) {
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
+          onNodeClick={(_, node) => onSelectNode?.(node.id)}
           fitView
           fitViewOptions={{ padding: 0.2 }}
           minZoom={0.1}

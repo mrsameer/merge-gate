@@ -1,0 +1,90 @@
+// T030 — run console wiring test.
+//
+// The console renders the shared event log and per-node status list, and
+// subscribes to the run's SSE stream when a run is active. The transport is
+// injected (`connect`) so a fake can drive named events without an
+// EventSource, mirroring tests/unit/sse_client.test.ts.
+
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { render, screen, act } from "@testing-library/react";
+import { RunConsole } from "../../src/console/RunConsole";
+import type { RunEventHandlers } from "../../src/state/sseClient";
+import { useAppStore } from "../../src/state/store";
+
+beforeEach(() => {
+  useAppStore.getState().reset();
+});
+
+describe("RunConsole", () => {
+  it("renders logged events and node statuses from the store", () => {
+    useAppStore.getState().appendEvent("verdict", { attempt: 1, passed: true });
+    useAppStore.getState().applyNodeStatus("execution", "running");
+
+    render(
+      <RunConsole collapsed={false} onToggle={() => {}} connect={vi.fn()} />,
+    );
+
+    expect(screen.getByTestId("event-1")).toHaveTextContent("verdict");
+    expect(screen.getByTestId("node-status-execution")).toHaveTextContent(
+      "running",
+    );
+  });
+
+  it("does not subscribe when there is no active run", () => {
+    const connect = vi.fn();
+    render(
+      <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
+    );
+    expect(connect).not.toHaveBeenCalled();
+  });
+
+  it("subscribes to the active run and reflects dispatched events", async () => {
+    let captured: RunEventHandlers | undefined;
+    const close = vi.fn();
+    const connect = vi.fn((_runId: string, handlers: RunEventHandlers) => {
+      captured = handlers;
+      return { close };
+    });
+
+    useAppStore.setState({ runId: "run-1" });
+    render(
+      <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
+    );
+
+    expect(connect).toHaveBeenCalledWith("run-1", expect.any(Object));
+
+    act(() => captured?.node_status?.({ node: "execution", attempt: 1 }));
+    expect(
+      await screen.findByTestId("node-status-execution"),
+    ).toHaveTextContent("running");
+
+    act(() => captured?.verdict?.({ attempt: 1, passed: false }));
+    expect(screen.getByTestId("node-status-validation")).toHaveTextContent(
+      "failed",
+    );
+
+    act(() => captured?.terminal?.({ status: "SUCCESS" }));
+    expect(screen.getByTestId("event-log")).toHaveTextContent("terminal");
+  });
+
+  it("closes the stream when the run console unmounts", () => {
+    const close = vi.fn();
+    const connect = vi.fn(() => ({ close }));
+    useAppStore.setState({ runId: "run-1" });
+
+    const { unmount } = render(
+      <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
+    );
+    unmount();
+
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the body when collapsed", () => {
+    useAppStore.getState().appendEvent("gate", { attempt: 1 });
+    render(
+      <RunConsole collapsed={true} onToggle={() => {}} connect={vi.fn()} />,
+    );
+    expect(screen.queryByTestId("event-log")).not.toBeInTheDocument();
+  });
+});

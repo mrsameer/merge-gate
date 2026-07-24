@@ -76,13 +76,13 @@ independently testable increment. Paths follow the web-app layout in plan.md
 - [ ] T023 [US1] Contract freeze + approval logic (`frozen_hash`) in `backend/src/mergegate/criteria/contract.py` (depends on T022)
 - [ ] T024 [US1] Command runner capturing stdout/stderr/exit_code/duration in `backend/src/mergegate/acceptance/commands.py`
 - [ ] T025 [US1] LLM-free acceptance engine driven by a pluggable criterion-evaluator registry, running the ordered pipeline build → lint → existing tests → new tests → migration apply/rollback → coverage → OpenAPI/API-compatibility in `backend/src/mergegate/acceptance/engine.py` (depends on T024)
-- [ ] T026 [US1] Verdict computation as a pure function over recorded state + `acceptance_hash` in `backend/src/mergegate/acceptance/verdict.py` (depends on T025)
-- [ ] T027 [US1] Wire four-role loop nodes (success_criteria, planning, execution→harness, validation→engine) in `backend/src/mergegate/orchestrator/nodes.py` (depends on T013, T016, T026)
-- [ ] T028 [US1] Runs API (create/get/start, criteria generate/edit/approve, gate) in `backend/src/mergegate/api/runs.py` (depends on T027)
-- [ ] T029 [US1] Final merge human gate → SUCCESS + branch/patch reference in `backend/src/mergegate/orchestrator/gates.py`
-- [ ] T030 [US1] Minimal UI wiring: Input node objective entry, criteria review/edit/approve, run, live node statuses + basic console in `frontend/src/inspector/` and `frontend/src/console/` (depends on T019, T028)
-- [ ] T073 [US1] Criterion-evaluator interface + registry with built-in evaluators for every FR-001c criterion type (build, tests, new-tests, required-file/feature-exists, protected-files, coverage-threshold, API-compatibility, performance-vs-baseline, architecture-conformance) in `backend/src/mergegate/acceptance/evaluators/` — demo exercises the concrete subset; perf-vs-baseline and architecture-conformance ship as evaluators wired through the same interface (depends on T025)
-- [ ] T074 [US1] Run-level cost accounting: aggregate and persist model calls, tokens, USD, and wall-clock from the harness adapter into the Run + ledger (FR-022) in `backend/src/mergegate/orchestrator/cost.py` (depends on T016, T027)
+- [X] T026 [US1] Verdict computation as a pure function over recorded state + `acceptance_hash` in `backend/src/mergegate/acceptance/verdict.py` (depends on T025)
+- [X] T027 [US1] Wire four-role loop nodes (success_criteria, planning, execution→harness, validation→engine) in `backend/src/mergegate/orchestrator/nodes.py` (depends on T013, T016, T026)
+- [X] T028 [US1] Runs API (create/get/start, criteria generate/edit/approve, gate) in `backend/src/mergegate/api/runs.py` (depends on T027)
+- [X] T029 [US1] Final merge human gate → SUCCESS + branch/patch reference in `backend/src/mergegate/orchestrator/gates.py`
+- [X] T030 [US1] Minimal UI wiring: Input node objective entry, criteria review/edit/approve, run, live node statuses + basic console in `frontend/src/inspector/` and `frontend/src/console/` (depends on T019, T028)
+- [X] T073 [US1] Criterion-evaluator interface + registry with built-in evaluators for every FR-001c criterion type (build, tests, new-tests, required-file/feature-exists, protected-files, coverage-threshold, API-compatibility, performance-vs-baseline, architecture-conformance) in `backend/src/mergegate/acceptance/evaluators/` — demo exercises the concrete subset; perf-vs-baseline and architecture-conformance ship as evaluators wired through the same interface (depends on T025)
+- [X] T074 [US1] Run-level cost accounting: aggregate and persist model calls, tokens, USD, and wall-clock from the harness adapter into the Run + ledger (FR-022) in `backend/src/mergegate/orchestrator/cost.py` (depends on T016, T027)
 
 **Checkpoint**: US1 fully functional and demonstrable end-to-end (MVP)
 

@@ -52,7 +52,15 @@ class PassFail(StrEnum):
 
 
 class CheckStep(StrEnum):
-    """Ordered acceptance pipeline steps."""
+    """Acceptance-pipeline steps.
+
+    ``BUILD``..``API_CONTRACT`` form the ordered demo pipeline the engine walks
+    (`engine.PIPELINE_ORDER`). The remaining members are the additional FR-001c
+    criterion types (T073) — they have registered evaluators but are
+    deliberately excluded from the ordered pipeline, so they extend coverage
+    without changing the happy-path run. ``POLICY`` is enforced by
+    `acceptance/policy.py` (US5), not by a criterion evaluator.
+    """
 
     BUILD = "build"
     LINT = "lint"
@@ -62,6 +70,10 @@ class CheckStep(StrEnum):
     COVERAGE = "coverage"
     API_CONTRACT = "api_contract"
     POLICY = "policy"
+    REQUIRED_FILE = "required_file"
+    PROTECTED_FILES = "protected_files"
+    PERFORMANCE = "performance"
+    ARCHITECTURE = "architecture"
 
 
 class NodeType(StrEnum):

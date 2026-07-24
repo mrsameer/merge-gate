@@ -146,9 +146,7 @@ def test_edit_criteria_before_approval(client, run_id):
     for new_priority, criterion in enumerate(reversed(edited)):
         criterion["priority"] = new_priority
 
-    response = client.put(
-        f"/api/runs/{run_id}/criteria", json={"criteria": edited}
-    )
+    response = client.put(f"/api/runs/{run_id}/criteria", json={"criteria": edited})
 
     assert response.status_code == 200, response.text
     body = response.json()

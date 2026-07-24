@@ -7,8 +7,11 @@ import {
   DEFAULT_WORKFLOW,
   DEFAULT_NODE_POSITIONS,
 } from "../canvas/defaultWorkflow";
+import { useAppStore } from "../state/store";
 
 export function CanvasArea() {
+  const selectNode = useAppStore((s) => s.selectNode);
+
   return (
     <main
       className="canvas-area"
@@ -18,6 +21,7 @@ export function CanvasArea() {
       <GraphCanvas
         workflow={DEFAULT_WORKFLOW}
         positions={DEFAULT_NODE_POSITIONS}
+        onSelectNode={selectNode}
       />
     </main>
   );

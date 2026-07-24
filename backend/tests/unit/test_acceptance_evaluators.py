@@ -8,18 +8,23 @@ acceptance is a function of real recorded state).
 
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
 from mergegate.acceptance.evaluators import (
     EVALUATOR_REGISTRY,
     evaluate_api_contract,
+    evaluate_architecture,
     evaluate_build,
     evaluate_coverage,
     evaluate_existing_tests,
     evaluate_lint,
     evaluate_migration,
     evaluate_new_tests,
+    evaluate_performance,
+    evaluate_protected_files,
+    evaluate_required_file,
     register_evaluator,
 )
 from mergegate.models.contract import Criterion
@@ -285,6 +290,234 @@ def test_registry_has_an_evaluator_for_every_pipeline_step() -> None:
         CheckStep.API_CONTRACT,
     ):
         assert step in EVALUATOR_REGISTRY
+
+
+def _git_init_repo(root: Path) -> None:
+    """Initialize a committed git repo at `root` (deterministic identity)."""
+    env = {
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
+    }
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True, env={**env})
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True, env={**env})
+    subprocess.run(
+        ["git", "commit", "-q", "-m", "baseline"], cwd=root, check=True, env={**env}
+    )
+
+
+# --- required-file / feature-exists (T073) -------------------------------
+
+
+def test_required_file_evaluator_passes_when_all_paths_exist(tmp_path: Path) -> None:
+    (tmp_path / "app").mkdir()
+    (tmp_path / "app" / "idempotency.py").write_text("x = 1\n")
+    criterion = Criterion(
+        id="feature-exists",
+        type=CriterionType.COMMAND,
+        priority=1,
+        step=CheckStep.REQUIRED_FILE,
+        source_paths=["app/idempotency.py"],
+    )
+    result = evaluate_required_file(criterion, str(tmp_path))
+
+    assert result.passed is True
+    assert result.step == CheckStep.REQUIRED_FILE
+    assert result.exit_code == 0
+
+
+def test_required_file_evaluator_fails_when_a_path_is_missing(tmp_path: Path) -> None:
+    criterion = Criterion(
+        id="feature-exists",
+        type=CriterionType.COMMAND,
+        priority=1,
+        step=CheckStep.REQUIRED_FILE,
+        params={"paths": ["app/idempotency.py", "app/missing.py"]},
+    )
+    result = evaluate_required_file(criterion, str(tmp_path))
+
+    assert result.passed is False
+    assert "missing" in result.stderr
+
+
+def test_required_file_evaluator_fails_when_no_paths_configured(tmp_path: Path) -> None:
+    criterion = Criterion(
+        id="feature-exists",
+        type=CriterionType.COMMAND,
+        priority=1,
+        step=CheckStep.REQUIRED_FILE,
+    )
+    result = evaluate_required_file(criterion, str(tmp_path))
+    assert result.passed is False
+
+
+# --- protected-files (T073) ----------------------------------------------
+
+
+def test_protected_files_evaluator_passes_when_untouched(tmp_path: Path) -> None:
+    (tmp_path / "auth.py").write_text("secret = 1\n")
+    (tmp_path / "orders.py").write_text("orders = []\n")
+    _git_init_repo(tmp_path)
+    # Modify a non-protected file only.
+    (tmp_path / "orders.py").write_text("orders = [1]\n")
+
+    criterion = Criterion(
+        id="protect-auth",
+        type=CriterionType.GIT_POLICY,
+        priority=1,
+        step=CheckStep.PROTECTED_FILES,
+        source_paths=["auth.py"],
+    )
+    result = evaluate_protected_files(criterion, str(tmp_path))
+
+    assert result.passed is True
+    assert result.step == CheckStep.PROTECTED_FILES
+
+
+def test_protected_files_evaluator_fails_when_protected_file_modified(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "auth.py").write_text("secret = 1\n")
+    _git_init_repo(tmp_path)
+    (tmp_path / "auth.py").write_text("secret = 2\n")
+
+    criterion = Criterion(
+        id="protect-auth",
+        type=CriterionType.GIT_POLICY,
+        priority=1,
+        step=CheckStep.PROTECTED_FILES,
+        params={"paths": ["auth.py"]},
+    )
+    result = evaluate_protected_files(criterion, str(tmp_path))
+
+    assert result.passed is False
+    assert "auth.py" in result.stderr
+
+
+def test_protected_files_evaluator_fails_closed_outside_a_git_repo(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "auth.py").write_text("secret = 1\n")
+    criterion = Criterion(
+        id="protect-auth",
+        type=CriterionType.GIT_POLICY,
+        priority=1,
+        step=CheckStep.PROTECTED_FILES,
+        source_paths=["auth.py"],
+    )
+    result = evaluate_protected_files(criterion, str(tmp_path))
+    assert result.passed is False
+
+
+# --- performance-vs-baseline (T073) --------------------------------------
+
+
+def test_performance_evaluator_passes_when_lower_than_baseline(tmp_path: Path) -> None:
+    criterion = Criterion(
+        id="latency",
+        type=CriterionType.METRIC,
+        priority=1,
+        step=CheckStep.PERFORMANCE,
+        command=_py_command("print('latency_ms 42')"),
+        params={"baseline": 50.0, "direction": "lower_is_better"},
+    )
+    result = evaluate_performance(criterion, str(tmp_path))
+
+    assert result.passed is True
+    assert result.step == CheckStep.PERFORMANCE
+
+
+def test_performance_evaluator_fails_when_worse_than_baseline(tmp_path: Path) -> None:
+    criterion = Criterion(
+        id="latency",
+        type=CriterionType.METRIC,
+        priority=1,
+        step=CheckStep.PERFORMANCE,
+        command=_py_command("print('latency_ms 80')"),
+        params={"baseline": 50.0, "direction": "lower_is_better"},
+    )
+    result = evaluate_performance(criterion, str(tmp_path))
+    assert result.passed is False
+
+
+def test_performance_evaluator_supports_higher_is_better(tmp_path: Path) -> None:
+    criterion = Criterion(
+        id="throughput",
+        type=CriterionType.METRIC,
+        priority=1,
+        step=CheckStep.PERFORMANCE,
+        command=_py_command("print('rps 1200')"),
+        params={"baseline": 1000.0, "direction": "higher_is_better"},
+    )
+    result = evaluate_performance(criterion, str(tmp_path))
+    assert result.passed is True
+
+
+def test_performance_evaluator_fails_when_command_fails(tmp_path: Path) -> None:
+    criterion = Criterion(
+        id="latency",
+        type=CriterionType.METRIC,
+        priority=1,
+        step=CheckStep.PERFORMANCE,
+        command=_py_command("import sys; sys.exit(1)"),
+        params={"baseline": 50.0},
+    )
+    result = evaluate_performance(criterion, str(tmp_path))
+    assert result.passed is False
+
+
+# --- architecture-conformance (T073) -------------------------------------
+
+
+def test_architecture_evaluator_passes_on_conformant_command(tmp_path: Path) -> None:
+    criterion = Criterion(
+        id="arch",
+        type=CriterionType.ARCHITECTURE,
+        priority=1,
+        step=CheckStep.ARCHITECTURE,
+        command=_py_command("print('contracts kept'); import sys; sys.exit(0)"),
+    )
+    result = evaluate_architecture(criterion, str(tmp_path))
+
+    assert result.passed is True
+    assert result.step == CheckStep.ARCHITECTURE
+
+
+def test_architecture_evaluator_fails_on_violation(tmp_path: Path) -> None:
+    criterion = Criterion(
+        id="arch",
+        type=CriterionType.ARCHITECTURE,
+        priority=1,
+        step=CheckStep.ARCHITECTURE,
+        command=_py_command("import sys; sys.exit(1)"),
+    )
+    result = evaluate_architecture(criterion, str(tmp_path))
+    assert result.passed is False
+
+
+def test_registry_covers_every_fr_001c_criterion_type() -> None:
+    """Every FR-001c criterion type has a registered evaluator (T073)."""
+    for step in (
+        CheckStep.REQUIRED_FILE,
+        CheckStep.PROTECTED_FILES,
+        CheckStep.PERFORMANCE,
+        CheckStep.ARCHITECTURE,
+    ):
+        assert step in EVALUATOR_REGISTRY
+
+
+def test_fr_001c_extension_steps_stay_out_of_the_ordered_pipeline() -> None:
+    """The new steps are registered but excluded from the demo pipeline."""
+    from mergegate.acceptance.engine import PIPELINE_ORDER
+
+    for step in (
+        CheckStep.REQUIRED_FILE,
+        CheckStep.PROTECTED_FILES,
+        CheckStep.PERFORMANCE,
+        CheckStep.ARCHITECTURE,
+    ):
+        assert step not in PIPELINE_ORDER
 
 
 def test_register_evaluator_overrides_registry(tmp_path: Path) -> None:

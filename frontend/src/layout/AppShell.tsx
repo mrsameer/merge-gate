@@ -5,8 +5,8 @@ import { useState } from "react";
 import { TopBar } from "./TopBar";
 import { NodeLibraryPanel } from "./NodeLibraryPanel";
 import { CanvasArea } from "./CanvasArea";
-import { InspectorPanel } from "./InspectorPanel";
-import { RunConsole } from "./RunConsole";
+import { InspectorPanel } from "../inspector/InspectorPanel";
+import { RunConsole } from "../console/RunConsole";
 import "./AppShell.css";
 
 export function AppShell() {

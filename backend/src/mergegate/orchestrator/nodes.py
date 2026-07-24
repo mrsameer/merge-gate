@@ -36,6 +36,7 @@ from mergegate.acceptance.engine import AcceptanceEngine
 from mergegate.acceptance.verdict import compute_verdict
 from mergegate.harness.base import HarnessError
 from mergegate.harness.registry import get_adapter
+from mergegate.ledger.ledger import LedgerWriter
 from mergegate.models import (
     Attempt,
     Contract,
@@ -44,6 +45,7 @@ from mergegate.models import (
     StructuredFeedback,
     Verdict,
 )
+from mergegate.orchestrator import cost as cost_accounting
 from mergegate.orchestrator import runner
 from mergegate.workspace.worktree import Worktree, create_worktree, discard_worktree
 
@@ -70,6 +72,9 @@ class RunContext:
         worktrees_root: Optional root under which per-attempt worktrees are
             created; defaults to a fresh temp dir per worktree.
         on_event: Optional sink for streaming node/verdict/terminal events.
+        ledger: Optional hash-chained ledger writer. When set, each attempt's
+            accumulated `CostAccounting` is recorded through it (FR-022); when
+            `None`, cost is still aggregated onto the run, just not persisted.
     """
 
     run: Run
@@ -82,6 +87,7 @@ class RunContext:
     now: Callable[[], float] = time.monotonic
     worktrees_root: Path | None = None
     on_event: EventSink | None = None
+    ledger: LedgerWriter | None = None
 
 
 def _emit(ctx: RunContext, event_type: str, payload: dict) -> None:
@@ -126,11 +132,16 @@ def run_execution_node(
         ctx.repo_ref, branch=branch, worktrees_root=ctx.worktrees_root
     )
     adapter = get_adapter(ctx.provider, **ctx.adapter_kwargs)
+    started = ctx.now()
     result = adapter.propose_changes(ctx.run.objective, feedback, worktree)
+    elapsed = max(0.0, ctx.now() - started)
 
-    ctx.run.cost.tokens += result.tokens
-    ctx.run.cost.model_calls += result.model_calls
-    ctx.run.cost.usd += result.usd
+    # Rebind (not in-place mutate) so a concurrently polling GET always
+    # serializes a whole accounting, and persist the snapshot when a ledger
+    # is wired (T074/FR-022).
+    ctx.run.cost = cost_accounting.add_result(ctx.run.cost, result, elapsed)
+    if ctx.ledger is not None:
+        cost_accounting.record_cost(ctx.ledger, ctx.run.cost)
 
     attempt = Attempt(
         id=str(uuid4()),
