@@ -179,6 +179,19 @@ def test_generate_hybrid_criteria_returns_contract(client, run_id):
         assert "priority" in criterion
 
 
+def test_generated_idempotency_checks_do_not_depend_on_test_names(client, run_id):
+    response = client.post(
+        f"/api/runs/{run_id}/criteria:generate", json={"mode": "hybrid"}
+    )
+    assert response.status_code == 200, response.text
+
+    criteria = {criterion["id"]: criterion for criterion in response.json()["criteria"]}
+    for criterion_id in ("idempotent-order-reuse", "idempotency-key-conflict"):
+        command = criteria[criterion_id]["command"]
+        assert command.endswith('pytest tests/test_idempotency.py -q')
+        assert " -k " not in command
+
+
 # ---------------------------------------------------------------------------
 # PUT /api/runs/{id}/criteria — edit / prioritize before approval
 # ---------------------------------------------------------------------------

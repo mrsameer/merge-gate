@@ -99,11 +99,11 @@ _CRITERION_PLAN: dict[str, tuple[CheckStep, str]] = {
     "idempotency-key-required": (CheckStep.API_CONTRACT, _OPENAPI_HEADER_CHECK),
     "idempotent-order-reuse": (
         CheckStep.API_CONTRACT,
-        f'"{_PY}" -m pytest tests/test_idempotency.py -q -k same_key_same_body',
+        f'"{_PY}" -m pytest tests/test_idempotency.py -q',
     ),
     "idempotency-key-conflict": (
         CheckStep.API_CONTRACT,
-        f'"{_PY}" -m pytest tests/test_idempotency.py -q -k different_body',
+        f'"{_PY}" -m pytest tests/test_idempotency.py -q',
     ),
 }
 
