@@ -92,3 +92,19 @@ class EdgePath(StrEnum):
     DEFAULT = "default"
     SUCCESS = "success"
     FAILURE = "failure"
+
+
+class LedgerEntryType(StrEnum):
+    """Kind of event recorded in the hash-chained ledger (Principle III, FR-019)."""
+
+    OBJECTIVE = "objective"
+    CONTRACT = "contract"
+    PLAN = "plan"
+    HARNESS = "harness"
+    COMMAND = "command"
+    VERDICT = "verdict"
+    RETRY = "retry"
+    GATE = "gate"
+    POLICY = "policy"
+    TERMINAL = "terminal"
+    REPLAY = "replay"
