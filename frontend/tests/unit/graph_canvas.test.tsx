@@ -13,7 +13,7 @@ import {
   DEFAULT_WORKFLOW,
   DEFAULT_NODE_POSITIONS,
 } from "../../src/canvas/defaultWorkflow";
-import { toFlowEdges } from "../../src/canvas/toFlowGraph";
+import { toFlowEdges, toFlowNodes } from "../../src/canvas/toFlowGraph";
 
 describe("GraphCanvas", () => {
   it("renders every node of the default four-role loop with its name, type, and status", () => {
@@ -24,7 +24,7 @@ describe("GraphCanvas", () => {
       />,
     );
 
-    expect(DEFAULT_WORKFLOW.nodes.length).toBe(9);
+    expect(DEFAULT_WORKFLOW.nodes.length).toBe(10);
 
     for (const node of DEFAULT_WORKFLOW.nodes) {
       const el = screen.getByTestId(`canvas-node-${node.id}`);
@@ -45,7 +45,6 @@ describe("GraphCanvas", () => {
     const typesByNode = DEFAULT_WORKFLOW.nodes.map((n) => n.type);
     for (const required of [
       "Input",
-      "HumanGate",
       "Validator",
       "Decision",
       "Success",
@@ -53,6 +52,7 @@ describe("GraphCanvas", () => {
     ]) {
       expect(typesByNode.filter((t) => t === required)).toHaveLength(1);
     }
+    expect(typesByNode.filter((t) => t === "HumanGate")).toHaveLength(2);
     expect(typesByNode.filter((t) => t === "Agent")).toHaveLength(3);
   });
 
@@ -82,19 +82,11 @@ describe("GraphCanvas", () => {
     expect(container.querySelector(".react-flow__edges")).toBeInTheDocument();
   });
 
-  it("renders read-only: no editing affordances for adding, connecting, or deleting nodes", () => {
-    render(
-      <GraphCanvas
-        workflow={DEFAULT_WORKFLOW}
-        positions={DEFAULT_NODE_POSITIONS}
-      />,
-    );
+  it("enables node dragging, selection, and connection authoring", () => {
+    const nodes = toFlowNodes(DEFAULT_WORKFLOW, DEFAULT_NODE_POSITIONS);
 
-    expect(
-      screen.queryByRole("button", { name: /add node/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /delete node/i }),
-    ).not.toBeInTheDocument();
+    expect(nodes.every((node) => node.draggable)).toBe(true);
+    expect(nodes.every((node) => node.connectable)).toBe(true);
+    expect(nodes.every((node) => node.selectable)).toBe(true);
   });
 });

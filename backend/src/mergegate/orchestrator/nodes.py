@@ -366,6 +366,33 @@ def _terminate(
     )
 
 
+def _honor_operator_control(
+    ctx: RunContext,
+    *,
+    active_worktree: Worktree | None,
+    baseline_status: str | None,
+) -> bool:
+    """Cooperate with API pause/stop requests between atomic node actions.
+
+    Harness and command processes are allowed to finish their current atomic
+    operation. The loop then blocks while paused, or cleans up and exits when
+    stopped, so a cancelled run can never advance to validation or a success
+    gate afterward.
+    """
+    while ctx.run.status == RunStatus.PAUSED:
+        time.sleep(0.05)
+    if ctx.run.status == RunStatus.RUNNING:
+        return True
+    if ctx.run.status == RunStatus.CANCELLED:
+        rollback_run(
+            ctx.run,
+            active_worktree=active_worktree,
+            reason="stopped by operator",
+            baseline_status=baseline_status,
+        )
+    return False
+
+
 def drive_run(ctx: RunContext) -> None:
     """Drive the bounded attempt loop to a gate or a terminal state.
 
@@ -392,6 +419,12 @@ def drive_run(ctx: RunContext) -> None:
 
     try:
         while True:
+            if not _honor_operator_control(
+                ctx,
+                active_worktree=active_worktree,
+                baseline_status=baseline_status,
+            ):
+                return
             exhausted = guard.terminal_status(
                 attempts=run.current_attempt, model_calls=run.cost.model_calls
             )
@@ -425,6 +458,12 @@ def drive_run(ctx: RunContext) -> None:
                     baseline_status=baseline_status,
                 )
                 return
+            if not _honor_operator_control(
+                ctx,
+                active_worktree=active_worktree,
+                baseline_status=baseline_status,
+            ):
+                return
             _emit(ctx, "node_status", {"node": "execution", "attempt": index})
             try:
                 attempt, active_worktree = run_execution_node(ctx, index, feedback)
@@ -437,6 +476,12 @@ def drive_run(ctx: RunContext) -> None:
                 )
                 return
 
+            if not _honor_operator_control(
+                ctx,
+                active_worktree=active_worktree,
+                baseline_status=baseline_status,
+            ):
+                return
             run.current_attempt = index
             # Rebind (not in-place append) so a concurrently polling GET always
             # serializes a complete list, never one mid-mutation.
@@ -476,6 +521,12 @@ def drive_run(ctx: RunContext) -> None:
                 _accept_dir(active_worktree, ctx.workspace_subdir),
                 baseline_checks,
             )
+            if not _honor_operator_control(
+                ctx,
+                active_worktree=active_worktree,
+                baseline_status=baseline_status,
+            ):
+                return
             _emit(ctx, "verdict", {"attempt": index, "passed": verdict.passed})
 
             if verdict.passed:

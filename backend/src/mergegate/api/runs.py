@@ -9,6 +9,9 @@ Implements the contract-before-code lifecycle promised by
     PUT  /api/runs/{id}/criteria            edit/prioritize (pre-approval only)
     POST /api/runs/{id}/criteria:approve    freeze the contract (records a hash)
     POST /api/runs/{id}:start               begin the loop (approved contracts)
+    POST /api/runs/{id}:pause               pause after the active node
+    POST /api/runs/{id}:resume              resume a paused run
+    POST /api/runs/{id}:stop                cancel a non-terminal run
     GET  /api/runs/{id}/attempts            recorded attempts + verdicts
     POST /api/runs/{id}/gate:approve        final merge gate -> SUCCESS
     POST /api/runs/{id}/gate:reject         final merge gate -> HUMAN_REJECTED
@@ -511,6 +514,61 @@ def start_run(run_id: str) -> JSONResponse:
     thread.start()
 
     return _run_json(run, status_code=202)
+
+
+@router.post("/runs/{run_id}:pause")
+def pause_run(run_id: str) -> JSONResponse:
+    """Request a cooperative pause after the currently active node."""
+    record = _require_record(run_id)
+    from mergegate.orchestrator import runner
+
+    try:
+        runner.transition(record.run, RunStatus.PAUSED)
+    except runner.InvalidTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _run_json(record.run)
+
+
+@router.post("/runs/{run_id}:resume")
+def resume_run(run_id: str) -> JSONResponse:
+    """Release a cooperatively paused run."""
+    record = _require_record(run_id)
+    from mergegate.orchestrator import runner
+
+    if record.run.status != RunStatus.PAUSED:
+        raise HTTPException(
+            status_code=409,
+            detail=f"cannot resume a Run in status {record.run.status}",
+        )
+    try:
+        runner.transition(record.run, RunStatus.RUNNING)
+    except runner.InvalidTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _run_json(record.run)
+
+
+@router.post("/runs/{run_id}:stop")
+def stop_run(run_id: str) -> JSONResponse:
+    """Cancel a non-terminal run; it can never later become successful."""
+    record = _require_record(run_id)
+    from mergegate.orchestrator import runner
+
+    try:
+        runner.transition(record.run, RunStatus.CANCELLED)
+    except runner.InvalidTransition as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    terminal_payload = {
+        "status": RunStatus.CANCELLED.value,
+        "reason": "stopped by operator",
+    }
+    if record.ledger is not None:
+        record.ledger.append(LedgerEntryType.TERMINAL, terminal_payload)
+    event_bus.publish(
+        record.run.id,
+        "terminal",
+        terminal_payload,
+    )
+    return _run_json(record.run)
 
 
 @router.post("/runs/{run_id}/gate:approve")

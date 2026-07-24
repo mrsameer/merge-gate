@@ -13,6 +13,19 @@ import type {
   Run,
   RunStatus,
 } from "../api";
+import {
+  DEFAULT_NODE_POSITIONS,
+  DEFAULT_WORKFLOW,
+} from "../canvas/defaultWorkflow";
+import {
+  addWorkflowNode,
+  connectWorkflowNodes,
+  defaultPosition,
+  layoutWorkflow,
+  moveWorkflowNode,
+  type NodePositions,
+} from "../canvas/workflowEditing";
+import type { EdgePath, NodeConfig, NodeType, Workflow } from "../canvas/types";
 
 export const DEFAULT_POLICY: Policy = {
   protected_paths: ["app/auth/**", "tests/acceptance/**"],
@@ -37,6 +50,8 @@ export interface RetryState {
 }
 
 export interface AppState {
+  workflow: Workflow;
+  positions: NodePositions;
   selectedNodeId: string | null;
   objective: string;
   runId: string | null;
@@ -48,6 +63,15 @@ export interface AppState {
   clarification: Clarification | null;
   policy: Policy;
 
+  setWorkflow: (workflow: Workflow, positions?: NodePositions) => void;
+  renameWorkflow: (name: string) => void;
+  addNode: (type: NodeType, position?: { x: number; y: number }) => void;
+  moveNode: (nodeId: string, position: { x: number; y: number }) => void;
+  connectNodes: (source: string, target: string, path: EdgePath) => void;
+  updateNode: (
+    nodeId: string,
+    update: { name?: string; config?: Partial<NodeConfig> },
+  ) => void;
   selectNode: (nodeId: string | null) => void;
   setObjective: (objective: string) => void;
   setRun: (run: Run) => void;
@@ -62,21 +86,78 @@ export interface AppState {
   reset: () => void;
 }
 
-const initialState = {
-  selectedNodeId: null,
-  objective: "",
-  runId: null,
-  contract: null,
-  run: null,
-  nodeStatuses: {},
-  events: [],
-  retry: null,
-  clarification: null,
-  policy: DEFAULT_POLICY,
-} satisfies Partial<AppState>;
+function initialState() {
+  return {
+    workflow: structuredClone(DEFAULT_WORKFLOW),
+    positions: structuredClone(DEFAULT_NODE_POSITIONS),
+    selectedNodeId: null,
+    objective: "",
+    runId: null,
+    contract: null,
+    run: null,
+    nodeStatuses: {},
+    events: [],
+    retry: null,
+    clarification: null,
+    policy: structuredClone(DEFAULT_POLICY),
+  } satisfies Partial<AppState>;
+}
 
 export const useAppStore = create<AppState>((set) => ({
-  ...initialState,
+  ...initialState(),
+
+  setWorkflow: (workflow, positions) =>
+    set({
+      workflow,
+      positions: positions ?? layoutWorkflow(workflow),
+      selectedNodeId: null,
+    }),
+
+  renameWorkflow: (name) =>
+    set((state) => ({ workflow: { ...state.workflow, name } })),
+
+  addNode: (type, position) =>
+    set((state) => {
+      const result = addWorkflowNode(
+        state.workflow,
+        state.positions,
+        type,
+        position ?? defaultPosition(state.workflow.nodes.length),
+      );
+      return {
+        workflow: result.workflow,
+        positions: result.positions,
+        selectedNodeId: result.node.id,
+      };
+    }),
+
+  moveNode: (nodeId, position) =>
+    set((state) => ({
+      positions: moveWorkflowNode(state.positions, nodeId, position),
+    })),
+
+  connectNodes: (source, target, path) =>
+    set((state) => ({
+      workflow: connectWorkflowNodes(state.workflow, source, target, path),
+    })),
+
+  updateNode: (nodeId, update) =>
+    set((state) => ({
+      workflow: {
+        ...state.workflow,
+        nodes: state.workflow.nodes.map((node) =>
+          node.id === nodeId
+            ? {
+                ...node,
+                ...(update.name !== undefined ? { name: update.name } : {}),
+                ...(update.config
+                  ? { config: { ...node.config, ...update.config } }
+                  : {}),
+              }
+            : node,
+        ),
+      },
+    })),
 
   selectNode: (selectedNodeId) => set({ selectedNodeId }),
 
@@ -115,5 +196,5 @@ export const useAppStore = create<AppState>((set) => ({
   setClarification: (clarification) => set({ clarification }),
   setPolicy: (policy) => set({ policy }),
 
-  reset: () => set({ ...initialState }),
+  reset: () => set(initialState()),
 }));

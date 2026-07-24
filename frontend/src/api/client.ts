@@ -63,6 +63,31 @@ async function request<T>(
   return body as T;
 }
 
+async function requestText(
+  path: string,
+  init: RequestInit,
+  options: ApiClientOptions,
+): Promise<string> {
+  const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+  const fetchImpl = options.fetch ?? globalThis.fetch;
+  const response = await fetchImpl(`${baseUrl}${path}`, init);
+  const content = await response.text();
+  if (!response.ok) {
+    let errorBody: ApiErrorBody | null = null;
+    try {
+      errorBody = JSON.parse(content) as ApiErrorBody;
+    } catch {
+      // Non-JSON proxy failures still become truthful API errors.
+    }
+    throw new ApiError(
+      response.status,
+      errorBody?.error?.code ?? "unknown_error",
+      errorBody?.error?.message ?? response.statusText,
+    );
+  }
+  return content;
+}
+
 export function createApiClient(options: ApiClientOptions = {}) {
   const call = <T>(path: string, init: RequestInit = {}) =>
     request<T>(path, { method: "GET", ...init }, options);
@@ -83,14 +108,16 @@ export function createApiClient(options: ApiClientOptions = {}) {
       }),
 
     exportWorkflow: (id: string, format: "yaml" | "json" = "json") =>
-      call<unknown>(`/workflows/${id}/export?format=${format}`, {
-        method: "POST",
-      }),
+      requestText(
+        `/workflows/${id}/export?format=${format}`,
+        { method: "POST" },
+        options,
+      ),
 
-    importWorkflow: (payload: unknown) =>
+    importWorkflow: (content: string, format: "yaml" | "json") =>
       call<Workflow>("/workflows/import", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ content, format }),
       }),
 
     generateCriteria: (runId: string, mode: ContractMode = "hybrid") =>

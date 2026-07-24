@@ -53,6 +53,16 @@ class Store:
         with self._lock:
             return self._workflows.get(workflow_id)
 
+    def update_workflow(self, workflow: Workflow) -> None:
+        """Replace an existing workflow atomically.
+
+        API handlers resolve existence before calling this method; keeping the
+        replacement under the store lock prevents readers from seeing a
+        partially updated graph.
+        """
+        with self._lock:
+            self._workflows[workflow.id] = workflow
+
     def add_run(self, run: Run, workflow: Workflow) -> RunRecord:
         with self._lock:
             ledger_conn = connect(

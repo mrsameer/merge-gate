@@ -21,7 +21,7 @@ export const DEFAULT_WORKFLOW: Workflow = {
     {
       id: "contract-gate",
       type: "HumanGate",
-      name: "Human Gate",
+      name: "Contract Gate",
       status: "idle",
     },
     {
@@ -46,6 +46,12 @@ export const DEFAULT_WORKFLOW: Workflow = {
       status: "idle",
     },
     { id: "decision", type: "Decision", name: "Decision", status: "idle" },
+    {
+      id: "merge-gate",
+      type: "HumanGate",
+      name: "Merge Gate",
+      status: "idle",
+    },
     { id: "success", type: "Success", name: "Success", status: "idle" },
     { id: "stop", type: "Stop", name: "Stop", status: "idle" },
   ],
@@ -87,9 +93,9 @@ export const DEFAULT_WORKFLOW: Workflow = {
       path: "default",
     },
     {
-      id: "e-decision-success",
+      id: "e-decision-merge",
       source: "decision",
-      target: "success",
+      target: "merge-gate",
       path: "success",
     },
     {
@@ -99,8 +105,14 @@ export const DEFAULT_WORKFLOW: Workflow = {
       path: "failure",
     },
     {
-      id: "e-decision-stop",
-      source: "decision",
+      id: "e-merge-success",
+      source: "merge-gate",
+      target: "success",
+      path: "success",
+    },
+    {
+      id: "e-merge-stop",
+      source: "merge-gate",
       target: "stop",
       path: "failure",
     },
@@ -116,6 +128,7 @@ export const DEFAULT_NODE_POSITIONS: Record<string, { x: number; y: number }> =
     execution: { x: 880, y: 160 },
     validator: { x: 1100, y: 160 },
     decision: { x: 1320, y: 160 },
-    success: { x: 1540, y: 40 },
-    stop: { x: 1540, y: 280 },
+    "merge-gate": { x: 1540, y: 160 },
+    success: { x: 1760, y: 40 },
+    stop: { x: 1760, y: 280 },
   };
