@@ -28,6 +28,47 @@ also available for a real coding-agent run.
 See the [architecture and trust boundaries](docs/architecture.md) and the
 [timed six-minute demo](docs/demo-script.md).
 
+## Track B recorded demonstrations
+
+These local screen recordings use a real three-attempt Claude Code run against
+the bundled `demo-repo`. They are silent evidence clips; use the
+[six-minute narration script](docs/demo-script.md) to present the complete
+five-to-seven-minute walkthrough.
+
+1. **Coding objective entered** — [`01-objective-criteria-workflow.mov`](docs/demo-videos/01-objective-criteria-workflow.mov)
+   shows the idempotency objective in the Input inspector.
+2. **Success criteria generated or edited** — [`01-objective-criteria-workflow.mov`](docs/demo-videos/01-objective-criteria-workflow.mov)
+   shows the generated, frozen command and API criteria.
+3. **Four-agent loop configured** — [`01-objective-criteria-workflow.mov`](docs/demo-videos/01-objective-criteria-workflow.mov)
+   shows Success Criteria, Planning, Execution, and Validator in the canvas.
+4. **Workflow saved or exported** — [`01-objective-criteria-workflow.mov`](docs/demo-videos/01-objective-criteria-workflow.mov)
+   shows the workflow save and YAML export controls.
+5. **Execution against a repository** — [`02-retry-evidence-inspection.mov`](docs/demo-videos/02-retry-evidence-inspection.mov)
+   shows the attempt timeline running against `demo-repo`.
+6. **Real validation evidence** — [`02-retry-evidence-inspection.mov`](docs/demo-videos/02-retry-evidence-inspection.mov)
+   shows `VALID PROOF`, red/green evidence, and acceptance hashes.
+7. **Failure feeds another iteration** — [`02-retry-evidence-inspection.mov`](docs/demo-videos/02-retry-evidence-inspection.mov)
+   shows failed attempts and the structured retry feedback in the live console.
+8. **Later success or safe stop** — [`02-retry-evidence-inspection.mov`](docs/demo-videos/02-retry-evidence-inspection.mov)
+   shows attempt three reaching the final merge gate after the earlier failures.
+9. **Inspectable sessions and changes** — [`02-retry-evidence-inspection.mov`](docs/demo-videos/02-retry-evidence-inspection.mov)
+   shows streamed agent actions, commands, worktree paths, diff metadata, and ledger receipts.
+
+### Bonus capabilities
+
+- **Token, model-call, and USD tracking** — [`03-bonus-cost-streaming-isolation-provider.mov`](docs/demo-videos/03-bonus-cost-streaming-isolation-provider.mov)
+  shows the harness receipt's token, call, and USD values.
+- **Live agent and command streaming** — [`03-bonus-cost-streaming-isolation-provider.mov`](docs/demo-videos/03-bonus-cost-streaming-isolation-provider.mov)
+  shows the agent transcript and command events.
+- **Isolated git worktrees** — [`03-bonus-cost-streaming-isolation-provider.mov`](docs/demo-videos/03-bonus-cost-streaming-isolation-provider.mov)
+  shows the disposable worktree path recorded for the attempt.
+- **Pause, resume, and checkpoint recovery** — the top-bar controls and SSE-backed run console are covered in the
+  [demo script](docs/demo-script.md#before-the-clock) and [run-state guide](#run-states).
+- **Reusable versioned templates** — the default and contradictory YAML fixtures are documented in
+  [`demo-repo/fixtures/`](demo-repo/fixtures/).
+- **External coding-harness integration** — [`03-bonus-cost-streaming-isolation-provider.mov`](docs/demo-videos/03-bonus-cost-streaming-isolation-provider.mov)
+  records the external Claude Code provider and model on a real attempt.
+
 ## Repository map
 
 | Path | Purpose |
