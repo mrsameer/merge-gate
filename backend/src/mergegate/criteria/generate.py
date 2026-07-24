@@ -101,7 +101,7 @@ def generate_hybrid_contract(
     criteria: list[Criterion] = [
         Criterion(
             id="feature-exists",
-            type=CriterionType.FEATURE_EXISTS,
+            type=CriterionType.ARCHITECTURE,
             priority=1,
             description=f"Implement the requested behavior: {objective.strip()}",
             source_paths=(source_paths[0],),
@@ -114,7 +114,7 @@ def generate_hybrid_contract(
             (
                 Criterion(
                     id="existing-tests",
-                    type=CriterionType.EXISTING_TESTS,
+                    type=CriterionType.COMMAND,
                     priority=2,
                     description="Existing repository tests pass.",
                     source_paths=test_paths,
@@ -123,7 +123,7 @@ def generate_hybrid_contract(
                 ),
                 Criterion(
                     id="new-tests",
-                    type=CriterionType.NEW_TESTS,
+                    type=CriterionType.COMMAND,
                     priority=3,
                     description="Task-specific tests are added and pass.",
                     source_paths=test_paths,
@@ -139,7 +139,7 @@ def generate_hybrid_contract(
             (
                 Criterion(
                     id="idempotency-key-required",
-                    type=CriterionType.API_COMPATIBILITY,
+                    type=CriterionType.OPENAPI,
                     priority=4,
                     description="POST /orders requires an Idempotency-Key header.",
                     source_paths=(order_sources[0],),
@@ -147,14 +147,14 @@ def generate_hybrid_contract(
                 ),
                 Criterion(
                     id="idempotent-order-reuse",
-                    type=CriterionType.FEATURE_EXISTS,
+                    type=CriterionType.DATABASE_ASSERTION,
                     priority=5,
                     description="The same key and body return the original order without another row.",
                     source_paths=(order_sources[0],),
                 ),
                 Criterion(
                     id="idempotency-key-conflict",
-                    type=CriterionType.API_COMPATIBILITY,
+                    type=CriterionType.OPENAPI,
                     priority=6,
                     description="The same key with a different body returns HTTP 409.",
                     source_paths=(order_sources[0],),
