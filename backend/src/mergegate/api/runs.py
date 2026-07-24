@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from mergegate.config.settings import get_settings
 from mergegate.ledger.store import RunStore
-from mergegate.models import Budget, Run, RunStatus
+from mergegate.models import Budget, Run, RunStatus, Verdict
 from mergegate.orchestrator.runner import build_orchestrator
 
 
@@ -122,6 +122,18 @@ def create_app() -> FastAPI:
         if run is None:
             raise HTTPException(status_code=404, detail="run not found")
         return orchestrator.approve_final_gate(run)
+
+    @app.post("/api/runs/{run_id}/replay")
+    def replay_run(run_id: str) -> Verdict:
+        run = store.get(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        if not run.attempts:
+            raise HTTPException(status_code=409, detail="no attempts to replay")
+        try:
+            return orchestrator.replay_run(run)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return app
 

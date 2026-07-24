@@ -19,6 +19,32 @@ export interface Contract {
   frozen_hash?: string | null;
 }
 
+export interface RedGreenEvidence {
+  criterion_id: string;
+  baseline: string;
+  result: string;
+  verdict: string;
+  test_hash: string;
+  baseline_hash: string;
+  result_hash: string;
+  baseline_exit_code: number;
+  result_exit_code: number;
+  command?: string;
+}
+
+export interface Verdict {
+  passed: boolean;
+  acceptance_hash: string;
+  replay_of?: string | null;
+}
+
+export interface Attempt {
+  id: string;
+  index: number;
+  verdict?: Verdict | null;
+  evidence?: RedGreenEvidence | null;
+}
+
 export interface Run {
   id: string;
   workflow_id: string;
@@ -28,6 +54,8 @@ export interface Run {
   contract?: Contract | null;
   current_attempt: number;
   branch_ref?: string | null;
+  attempts?: Attempt[];
+  cost?: { model_calls: number };
 }
 
 const API_BASE = "/api";
@@ -83,4 +111,11 @@ export async function approveFinalGate(runId: string): Promise<Run> {
 
 export async function getRun(runId: string): Promise<Run> {
   return request<Run>(`/runs/${runId}`);
+}
+
+export async function replayValidation(runId: string): Promise<Verdict> {
+  return request<Verdict>(`/runs/${runId}/replay`, {
+    method: "POST",
+    body: "{}",
+  });
 }

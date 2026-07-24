@@ -16,6 +16,22 @@ class HarnessResult:
 
 
 class HarnessAdapter(ABC):
+    def prepare_acceptance_tests(
+        self,
+        *,
+        objective: str,
+        workspace: str,
+    ) -> HarnessResult:
+        """Add task-specific acceptance tests before baseline red-check."""
+        return HarnessResult(
+            diff="",
+            changed_files=[],
+            log="",
+            tokens=0,
+            model_calls=0,
+            usd=0.0,
+        )
+
     @abstractmethod
     def propose_changes(
         self,

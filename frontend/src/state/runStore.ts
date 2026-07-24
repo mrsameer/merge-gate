@@ -15,7 +15,9 @@ interface RunState {
   run: Run | null;
   contract: Contract | null;
   log: string[];
+  replayLog: string;
   setObjective: (objective: string) => void;
+  setReplayLog: (message: string) => void;
   submitObjective: () => Promise<void>;
   generateAndApprove: () => Promise<void>;
   executeRun: () => Promise<void>;
@@ -28,7 +30,9 @@ export const useRunStore = create<RunState>((set, get) => ({
   run: null,
   contract: null,
   log: [],
+  replayLog: "",
   setObjective: (objective) => set({ objective }),
+  setReplayLog: (replayLog) => set({ replayLog }),
   submitObjective: async () => {
     const objective = get().objective.trim();
     if (!objective) return;

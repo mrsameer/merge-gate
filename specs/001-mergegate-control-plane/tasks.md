@@ -77,7 +77,7 @@ independently testable increment. Paths follow the web-app layout in plan.md
 - [ ] T024 [US1] Command runner capturing stdout/stderr/exit_code/duration in `backend/src/mergegate/acceptance/commands.py`
 - [ ] T025 [US1] LLM-free acceptance engine driven by a pluggable criterion-evaluator registry, running the ordered pipeline build → lint → existing tests → new tests → migration apply/rollback → coverage → OpenAPI/API-compatibility in `backend/src/mergegate/acceptance/engine.py` (depends on T024)
 - [ ] T026 [US1] Verdict computation as a pure function over recorded state + `acceptance_hash` in `backend/src/mergegate/acceptance/verdict.py` (depends on T025)
-- [ ] T027 [US1] Wire four-role loop nodes (success_criteria, planning, execution→harness, validation→engine) in `backend/src/mergegate/orchestrator/nodes.py` (depends on T013, T016, T026)
+- [x] T027 [US1] Wire four-role loop nodes (success_criteria, planning, execution→harness, validation→engine) in `backend/src/mergegate/orchestrator/nodes.py` (depends on T013, T016, T026)
 - [ ] T028 [US1] Runs API (create/get/start, criteria generate/edit/approve, gate) in `backend/src/mergegate/api/runs.py` (depends on T027)
 - [ ] T029 [US1] Final merge human gate → SUCCESS + branch/patch reference in `backend/src/mergegate/orchestrator/gates.py`
 - [ ] T030 [US1] Minimal UI wiring: Input node objective entry, criteria review/edit/approve, run, live node statuses + basic console in `frontend/src/inspector/` and `frontend/src/console/` (depends on T019, T028)
@@ -96,15 +96,15 @@ independently testable increment. Paths follow the web-app layout in plan.md
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T031 [P] [US2] Integration test red-before/green-after + replay-with-zero-model-calls in `backend/tests/integration/test_replay.py`
+- [x] T031 [P] [US2] Integration test red-before/green-after + replay-with-zero-model-calls in `backend/tests/integration/test_replay.py`
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Baseline red-check: run task tests on baseline worktree, assert ≥1 relevant test fails in `backend/src/mergegate/acceptance/baseline.py` (depends on T014, T025)
-- [ ] T033 [US2] Red→green evidence record + test/baseline/result hashes in `backend/src/mergegate/acceptance/evidence.py` (depends on T032)
-- [ ] T034 [US2] Replay entrypoint recomputing the verdict from `acceptance_input` with the provider adapter disabled in `backend/src/mergegate/acceptance/replay.py` (depends on T026)
-- [ ] T035 [US2] `/runs/{id}/replay` endpoint enforcing zero model calls in `backend/src/mergegate/api/runs.py` (depends on T034)
-- [ ] T036 [P] [US2] Evidence screen UI (baseline/result/verdict, hashes, Replay button) in `frontend/src/evidence/` (depends on T030)
+- [x] T032 [US2] Baseline red-check: run task tests on baseline worktree, assert ≥1 relevant test fails in `backend/src/mergegate/acceptance/baseline.py` (depends on T014, T025)
+- [x] T033 [US2] Red→green evidence record + test/baseline/result hashes in `backend/src/mergegate/acceptance/evidence.py` (depends on T032)
+- [x] T034 [US2] Replay entrypoint recomputing the verdict from `acceptance_input` with the provider adapter disabled in `backend/src/mergegate/acceptance/replay.py` (depends on T026)
+- [x] T035 [US2] `/runs/{id}/replay` endpoint enforcing zero model calls in `backend/src/mergegate/api/runs.py` (depends on T034)
+- [x] T036 [P] [US2] Evidence screen UI (baseline/result/verdict, hashes, Replay button) in `frontend/src/evidence/` (depends on T030)
 
 **Checkpoint**: Validator-integrity story demonstrable independently
 

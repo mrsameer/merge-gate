@@ -36,13 +36,25 @@ def generate_hybrid_criteria(
         ),
     ]
     if "idempotency" in objective.lower() or "order" in objective.lower():
+        criteria.insert(
+            0,
+            Criterion(
+                id="task-tests",
+                type=CriterionType.COMMAND,
+                priority=1,
+                command="python -m pytest tests/test_idempotency.py -q",
+                expected_exit_code=0,
+                baseline_expected=ExpectedResult.FAIL,
+                result_expected=ExpectedResult.PASS,
+            ),
+        )
         criteria.append(
             Criterion(
                 id="feature-exists",
                 type=CriterionType.ARCHITECTURE,
                 priority=5,
                 command=(
-                    "python -c \"import pathlib; "
+                    'python -c "import pathlib; '
                     "assert 'Idempotency-Key' in "
                     "pathlib.Path('app/orders/router.py').read_text()\""
                 ),

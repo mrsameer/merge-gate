@@ -147,6 +147,19 @@ class StructuredFeedback(BaseModel):
     attempt: int
 
 
+class RedGreenEvidence(BaseModel):
+    criterion_id: str
+    baseline: str
+    result: str
+    verdict: str
+    test_hash: str
+    baseline_hash: str
+    result_hash: str
+    baseline_exit_code: int
+    result_exit_code: int
+    command: str = ""
+
+
 class Attempt(BaseModel):
     id: str
     run_id: str
@@ -157,6 +170,7 @@ class Attempt(BaseModel):
     changed_files: list[str] = Field(default_factory=list)
     harness_log: str = ""
     verdict: Verdict | None = None
+    evidence: RedGreenEvidence | None = None
     failure_signature: str | None = None
     feedback: StructuredFeedback | None = None
 
