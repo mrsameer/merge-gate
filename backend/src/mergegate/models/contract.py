@@ -4,7 +4,7 @@
 
 from pydantic import BaseModel, Field
 
-from mergegate.models.enums import ContractMode, CriterionType, PassFail
+from mergegate.models.enums import CheckStep, ContractMode, CriterionType, PassFail
 
 
 class Criterion(BaseModel):
@@ -22,6 +22,11 @@ class Criterion(BaseModel):
     metric_path: str | None = None
     minimum: float | None = None
     params: dict | None = None
+    step: CheckStep | None = None
+    """Which ordered acceptance-pipeline step this criterion belongs to
+    (research R2/T025). ``None`` means the criterion is evaluated outside the
+    engine's ordered pipeline (e.g. anti-cheat policy criteria, handled by
+    `acceptance/policy.py` in US5)."""
 
 
 class Contract(BaseModel):

@@ -13,11 +13,29 @@ from mergegate.acceptance.commands import (
     CommandResult,
     run_command,
 )
+from mergegate.acceptance.engine import (
+    PIPELINE_ORDER,
+    AcceptanceEngine,
+    default_engine,
+    run_acceptance_pipeline,
+)
+from mergegate.acceptance.evaluators import (
+    EVALUATOR_REGISTRY,
+    Evaluator,
+    register_evaluator,
+)
 
 __all__ = [
     "COMMAND_NOT_FOUND_EXIT_CODE",
     "DEFAULT_TIMEOUT_S",
+    "EVALUATOR_REGISTRY",
+    "PIPELINE_ORDER",
     "TIMEOUT_EXIT_CODE",
+    "AcceptanceEngine",
     "CommandResult",
+    "Evaluator",
+    "default_engine",
+    "register_evaluator",
+    "run_acceptance_pipeline",
     "run_command",
 ]
