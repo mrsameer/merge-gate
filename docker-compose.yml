@@ -1,0 +1,84 @@
+name: mergegate
+
+services:
+  demo-repo-runner:
+    build:
+      context: .
+      dockerfile: demo-repo/Dockerfile
+    ports:
+      - "9000:9000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen("http://127.0.0.1:9000/openapi.json", timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    working_dir: /workspace
+    command:
+      - /app/.venv/bin/uvicorn
+      - mergegate.api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    environment:
+      PYTHONPATH: /app/src
+      GOOGLE_GENAI_USE_VERTEXAI: "${GOOGLE_GENAI_USE_VERTEXAI:-false}"
+      GOOGLE_CLOUD_PROJECT: "${GOOGLE_CLOUD_PROJECT:-}"
+      GOOGLE_CLOUD_LOCATION: "${GOOGLE_CLOUD_LOCATION:-asia-south1}"
+    volumes:
+      - .:/workspace
+      - "${HOME}/.config/gcloud:/root/.config/gcloud:ro"
+    ports:
+      - "8000:8000"
+    depends_on:
+      demo-repo-runner:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - /app/.venv/bin/python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --tries=1
+        - --spider
+        - http://127.0.0.1/healthz
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
