@@ -47,6 +47,7 @@ from mergegate.models import (
     CheckResult,
     Contract,
     PassFail,
+    Policy,
     Run,
     RunStatus,
     StructuredFeedback,
@@ -91,6 +92,7 @@ class RunContext:
     contract: Contract
     provider: str
     repo_ref: str
+    policy: Policy = field(default_factory=Policy)
     workspace_subdir: str = "."
     adapter_kwargs: dict = field(default_factory=dict)
     engine: AcceptanceEngine = field(default_factory=AcceptanceEngine)
@@ -110,6 +112,14 @@ def _accept_dir(worktree: Worktree, subdir: str) -> Path:
     if subdir in ("", "."):
         return worktree.path
     return worktree.path / subdir
+
+
+def _policy_changed_files(changed_files: list[str], subdir: str) -> list[str]:
+    """Make worktree-root paths relative to the run's target project."""
+    prefix = f"{subdir.strip('/')}/" if subdir not in ("", ".") else ""
+    if not prefix:
+        return changed_files
+    return [path[len(prefix) :] for path in changed_files if path.startswith(prefix)]
 
 
 def _acceptance_input(contract: Contract, commit_sha: str) -> dict:
@@ -321,6 +331,28 @@ def drive_run(ctx: RunContext) -> None:
             # Rebind (not in-place append) so a concurrently polling GET always
             # serializes a complete list, never one mid-mutation.
             run.attempts = [*run.attempts, attempt]
+
+            _emit(ctx, "node_status", {"node": "policy", "attempt": index})
+            policy_result = ctx.engine.check_policy(
+                ctx.policy,
+                changed_files=_policy_changed_files(
+                    attempt.changed_files, ctx.workspace_subdir
+                ),
+                diff=attempt.diff,
+            )
+            attempt.policy_results = [policy_result]
+            if not policy_result.passed:
+                violation = policy_result.violations[0]
+                policy_event = runner.block_for_policy(run, violation)
+                _emit(ctx, "policy_block", policy_event)
+                _terminate(
+                    ctx,
+                    RunStatus.POLICY_BLOCKED,
+                    reason=violation.message,
+                    active_worktree=active_worktree,
+                    baseline_status=baseline_status,
+                )
+                return
 
             _emit(ctx, "node_status", {"node": "validation", "attempt": index})
             verdict = run_validation_node(

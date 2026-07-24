@@ -24,6 +24,7 @@ from mergegate.acceptance.evaluators import (
     Evaluator,
     register_evaluator,
 )
+from mergegate.acceptance.policy import check_policy
 
 __all__ = [
     "COMMAND_NOT_FOUND_EXIT_CODE",
@@ -35,6 +36,7 @@ __all__ = [
     "CommandResult",
     "Evaluator",
     "default_engine",
+    "check_policy",
     "register_evaluator",
     "run_acceptance_pipeline",
     "run_command",

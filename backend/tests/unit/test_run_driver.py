@@ -26,6 +26,7 @@ from mergegate.models import (
     CostAccounting,
     Criterion,
     CriterionType,
+    Policy,
     Run,
     RunStatus,
 )
@@ -103,6 +104,41 @@ def _make_run(budgets: Budget) -> Run:
         current_attempt=0,
         cost=CostAccounting(),
     )
+
+
+def test_policy_is_checked_before_validation_and_stops_retries(
+    git_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    events: list[tuple[str, dict]] = []
+    run = _make_run(Budget(max_attempts=3, max_wall_clock_s=60, max_model_calls=3))
+    run.repo_ref = str(git_repo)
+    contract = _contract(
+        f'"{sys.executable}" -c "from pathlib import Path; '
+        "assert Path('protected/guard.py').exists()\""
+    )
+    monkeypatch.setattr(
+        nodes,
+        "get_adapter",
+        lambda provider, **kwargs: FakeAdapter(
+            {"protected/guard.py": "disabled = True\n"}
+        ),
+    )
+    ctx = RunContext(
+        run=run,
+        contract=contract,
+        policy=Policy(protected_paths=["protected/**"]),
+        provider="fake",
+        repo_ref=str(git_repo),
+        worktrees_root=tmp_path / "worktrees",
+        on_event=lambda kind, payload: events.append((kind, payload)),
+    )
+
+    drive_run(ctx)
+
+    assert run.status == RunStatus.POLICY_BLOCKED
+    assert run.attempts[0].verdict is None
+    assert [kind for kind, _ in events].count("policy_block") == 1
+    assert all(kind not in {"verdict", "retry", "gate"} for kind, _ in events)
 
 
 def _contract(command: str) -> Contract:

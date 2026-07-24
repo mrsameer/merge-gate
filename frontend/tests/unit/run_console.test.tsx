@@ -46,7 +46,23 @@ describe("RunConsole", () => {
       return { close };
     });
 
-    useAppStore.setState({ runId: "run-1" });
+    useAppStore.setState({
+      runId: "run-1",
+      run: {
+        id: "run-1",
+        workflow_id: "wf-1",
+        objective: "obj",
+        repo_ref: "demo-repo",
+        status: "running",
+        budgets: {
+          max_attempts: 3,
+          max_wall_clock_s: 60,
+          max_model_calls: 3,
+        },
+        current_attempt: 1,
+        cost: { tokens: 0, model_calls: 0, usd: 0 },
+      },
+    });
     render(
       <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
     );
@@ -58,13 +74,25 @@ describe("RunConsole", () => {
       await screen.findByTestId("node-status-execution"),
     ).toHaveTextContent("running");
 
+    act(() =>
+      captured?.node_status?.({
+        node: "policy",
+        status: "blocked",
+        attempt: 1,
+      }),
+    );
+    expect(screen.getByTestId("node-status-policy")).toHaveTextContent(
+      "blocked",
+    );
+
     act(() => captured?.verdict?.({ attempt: 1, passed: false }));
     expect(screen.getByTestId("node-status-validation")).toHaveTextContent(
       "failed",
     );
 
-    act(() => captured?.terminal?.({ status: "SUCCESS" }));
+    act(() => captured?.terminal?.({ status: "POLICY_BLOCKED" }));
     expect(screen.getByTestId("event-log")).toHaveTextContent("terminal");
+    expect(useAppStore.getState().run?.status).toBe("POLICY_BLOCKED");
   });
 
   it("surfaces the current attempt and actionable retry reason", async () => {

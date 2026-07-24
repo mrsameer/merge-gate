@@ -5,7 +5,23 @@
 // calls themselves stay in those panels via the api client (../api).
 
 import { create } from "zustand";
-import type { Clarification, Contract, Criterion, Run } from "../api";
+import type {
+  Clarification,
+  Contract,
+  Criterion,
+  Policy,
+  Run,
+  RunStatus,
+} from "../api";
+
+export const DEFAULT_POLICY: Policy = {
+  protected_paths: ["app/auth/**", "tests/acceptance/**"],
+  forbidden_diff_patterns: [
+    "pytest.mark.skip",
+    "eslint-disable",
+    "assert True",
+  ],
+};
 
 export interface ConsoleEvent {
   seq: number;
@@ -30,16 +46,19 @@ export interface AppState {
   events: ConsoleEvent[];
   retry: RetryState | null;
   clarification: Clarification | null;
+  policy: Policy;
 
   selectNode: (nodeId: string | null) => void;
   setObjective: (objective: string) => void;
   setRun: (run: Run) => void;
+  setRunStatus: (status: RunStatus) => void;
   setContract: (contract: Contract | null) => void;
   setCriteria: (criteria: Criterion[]) => void;
   applyNodeStatus: (node: string, status: string) => void;
   appendEvent: (type: string, data: Record<string, unknown>) => void;
   setRetry: (retry: RetryState | null) => void;
   setClarification: (clarification: Clarification | null) => void;
+  setPolicy: (policy: Policy) => void;
   reset: () => void;
 }
 
@@ -53,6 +72,7 @@ const initialState = {
   events: [],
   retry: null,
   clarification: null,
+  policy: DEFAULT_POLICY,
 } satisfies Partial<AppState>;
 
 export const useAppStore = create<AppState>((set) => ({
@@ -69,6 +89,9 @@ export const useAppStore = create<AppState>((set) => ({
       runId: run.id,
       clarification: run.clarification ?? null,
     }),
+
+  setRunStatus: (status) =>
+    set((state) => (state.run ? { run: { ...state.run, status } } : state)),
 
   setContract: (contract) => set({ contract }),
 
@@ -90,6 +113,7 @@ export const useAppStore = create<AppState>((set) => ({
   setRetry: (retry) => set({ retry }),
 
   setClarification: (clarification) => set({ clarification }),
+  setPolicy: (policy) => set({ policy }),
 
   reset: () => set({ ...initialState }),
 }));

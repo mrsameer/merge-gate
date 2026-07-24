@@ -105,6 +105,42 @@ describe("InspectorPanel", () => {
     );
   });
 
+  it("surfaces editable policy config on the Validator and freezes it into a run", async () => {
+    useAppStore.getState().selectNode("validator");
+    const { rerender } = render(<InspectorPanel client={{} as ApiClient} />);
+
+    const protectedPaths = screen.getByLabelText("Protected paths");
+    const forbiddenPatterns = screen.getByLabelText("Forbidden diff patterns");
+    expect(protectedPaths).toHaveValue("app/auth/**\ntests/acceptance/**");
+    expect(forbiddenPatterns).toHaveValue(
+      "pytest.mark.skip\neslint-disable\nassert True",
+    );
+
+    fireEvent.change(protectedPaths, {
+      target: { value: "app/auth/**\ninfra/secrets/**" },
+    });
+    fireEvent.change(forbiddenPatterns, {
+      target: { value: "pytest.mark.skip\nnoqa" },
+    });
+
+    const createRun = vi.fn().mockResolvedValue(makeRun());
+    useAppStore.getState().selectNode("input");
+    useAppStore.getState().setObjective("Add idempotency keys");
+    rerender(<InspectorPanel client={{ createRun } as unknown as ApiClient} />);
+    fireEvent.click(screen.getByRole("button", { name: /create run/i }));
+
+    await waitFor(() =>
+      expect(createRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          policy: {
+            protected_paths: ["app/auth/**", "infra/secrets/**"],
+            forbidden_diff_patterns: ["pytest.mark.skip", "noqa"],
+          },
+        }),
+      ),
+    );
+  });
+
   it("generates, edits, approves criteria and starts the run", async () => {
     const generateCriteria = vi.fn().mockResolvedValue(makeContract());
     const updateCriteria = vi.fn().mockResolvedValue(

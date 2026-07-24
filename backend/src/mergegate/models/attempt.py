@@ -4,6 +4,7 @@ to an isolated workspace (FR-011, FR-012, FR-014).
 
 from pydantic import BaseModel, Field
 
+from mergegate.models.policy import PolicyResult
 from mergegate.models.verdict import Verdict
 
 
@@ -29,6 +30,7 @@ class Attempt(BaseModel):
     diff: str
     changed_files: list[str] = Field(default_factory=list)
     harness_log: str
+    policy_results: list[PolicyResult] = Field(default_factory=list)
     verdict: Verdict | None = None
     red_green_evidence: dict | None = None
     failure_signature: str | None = None
