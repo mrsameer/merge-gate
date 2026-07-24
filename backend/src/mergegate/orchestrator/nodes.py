@@ -26,20 +26,26 @@ leaves a successful run at `awaiting_gate`; the human merge gate
 
 from __future__ import annotations
 
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
+from mergegate.acceptance.baseline import run_baseline_checks
+from mergegate.acceptance.commands import run_command
 from mergegate.acceptance.engine import AcceptanceEngine
+from mergegate.acceptance.evidence import build_red_green_evidence
 from mergegate.acceptance.verdict import compute_verdict
 from mergegate.harness.base import HarnessError
 from mergegate.harness.registry import get_adapter
 from mergegate.ledger.ledger import LedgerWriter
 from mergegate.models import (
     Attempt,
+    CheckResult,
     Contract,
+    PassFail,
     Run,
     RunStatus,
     StructuredFeedback,
@@ -102,9 +108,13 @@ def _accept_dir(worktree: Worktree, subdir: str) -> Path:
     return worktree.path / subdir
 
 
-def _acceptance_input(contract: Contract) -> dict:
+def _acceptance_input(contract: Contract, commit_sha: str) -> dict:
     """The frozen-contract projection recorded as the verdict's decision input."""
     return {
+        "commit_sha": commit_sha,
+        "validation_config": {"frozen_hash": contract.frozen_hash},
+        "tool_versions": {"python": sys.version.split()[0]},
+        "env_fingerprint": sys.platform,
         "contract_id": contract.id,
         "frozen_hash": contract.frozen_hash,
         "criteria": [
@@ -156,13 +166,36 @@ def run_execution_node(
     return attempt, worktree
 
 
-def run_validation_node(ctx: RunContext, attempt: Attempt, accept_dir: Path) -> Verdict:
+def run_validation_node(
+    ctx: RunContext,
+    attempt: Attempt,
+    accept_dir: Path,
+    baseline_checks: list[CheckResult],
+) -> Verdict:
     """Run the contract through the acceptance engine and attach the verdict."""
     checks = ctx.engine.run(ctx.contract, str(accept_dir))
+    baseline_by_criterion = {check.criterion_id: check for check in baseline_checks}
+    checks = [
+        check.model_copy(
+            update={
+                "baseline_result": PassFail.FAIL
+                if not baseline_by_criterion[check.criterion_id].passed
+                else PassFail.PASS
+            }
+        )
+        if check.criterion_id in baseline_by_criterion
+        else check
+        for check in checks
+    ]
+    evidence = build_red_green_evidence(ctx.contract, baseline_checks, checks)
+    attempt.red_green_evidence = evidence.model_dump(mode="json")
+    commit_sha = run_command(
+        ["git", "rev-parse", "HEAD"], cwd=str(accept_dir)
+    ).stdout.strip()
     verdict = compute_verdict(
         attempt_id=attempt.id,
         checks=checks,
-        acceptance_input=_acceptance_input(ctx.contract),
+        acceptance_input=_acceptance_input(ctx.contract, commit_sha),
     )
     attempt.verdict = verdict
     return verdict
@@ -226,6 +259,14 @@ def drive_run(ctx: RunContext) -> None:
                 return
 
             index = run.current_attempt + 1
+            _emit(ctx, "node_status", {"node": "baseline", "attempt": index})
+            try:
+                baseline_checks = run_baseline_checks(
+                    ctx.contract, ctx.repo_ref, ctx.engine
+                )
+            except ValueError:
+                _terminate(ctx, RunStatus.NO_PROGRESS)
+                return
             _emit(ctx, "node_status", {"node": "execution", "attempt": index})
             try:
                 attempt, worktree = run_execution_node(ctx, index, feedback)
@@ -240,7 +281,10 @@ def drive_run(ctx: RunContext) -> None:
 
             _emit(ctx, "node_status", {"node": "validation", "attempt": index})
             verdict = run_validation_node(
-                ctx, attempt, _accept_dir(worktree, ctx.workspace_subdir)
+                ctx,
+                attempt,
+                _accept_dir(worktree, ctx.workspace_subdir),
+                baseline_checks,
             )
             _emit(ctx, "verdict", {"attempt": index, "passed": verdict.passed})
 

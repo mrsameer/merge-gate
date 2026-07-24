@@ -1,0 +1,28 @@
+.evidence-panel {
+  border-top: 1px solid #28344a;
+  padding: 0.75rem 1rem;
+  background: #101827;
+  color: #e5edf9;
+}
+
+.evidence-panel h2 {
+  color: #6ee7b7;
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+}
+.evidence-panel p {
+  margin: 0.35rem 0;
+}
+.evidence-panel dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 0.75rem;
+  font-size: 0.8rem;
+}
+.evidence-panel dt {
+  color: #9fb0c9;
+}
+.evidence-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

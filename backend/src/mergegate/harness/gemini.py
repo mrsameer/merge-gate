@@ -11,7 +11,11 @@ this adapter intentionally does not handle OAuth tokens itself.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+import tempfile
+import threading
+import time
+from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any
 
 from mergegate.acceptance.commands import COMMAND_NOT_FOUND_EXIT_CODE, run_command
@@ -21,7 +25,45 @@ from mergegate.workspace.worktree import Worktree, capture_diff
 
 DEFAULT_EXECUTABLE = "gemini"
 DEFAULT_TIMEOUT_S = 600.0
+DEFAULT_MIN_REQUEST_INTERVAL_S = 10.0
+DEFAULT_MAX_TURNS = 8
+DEFAULT_MAX_TIME_MINUTES = 5
 GEMINI_API_KEY_ENV_VAR = "GEMINI_API_KEY"
+
+
+class RequestThrottle:
+    """Process-wide pacing gate shared by Gemini adapter instances.
+
+    The orchestration layer constructs a fresh adapter for every attempt, so
+    throttling must be separate from an adapter instance to guard retries and
+    concurrently-started runs alike.
+    """
+
+    def __init__(
+        self,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
+        self._clock = clock
+        self._sleeper = sleeper
+        self._lock = threading.Lock()
+        self._last_started_at: float | None = None
+
+    def wait_for_turn(self, minimum_interval_s: float) -> None:
+        """Wait until this process may start another Gemini model request."""
+        if minimum_interval_s <= 0:
+            return
+        with self._lock:
+            now = self._clock()
+            if self._last_started_at is not None:
+                self._sleeper(
+                    max(0.0, minimum_interval_s - (now - self._last_started_at))
+                )
+            self._last_started_at = self._clock()
+
+
+_REQUEST_THROTTLE = RequestThrottle()
 
 
 def _as_argv(executable: str | Sequence[str]) -> list[str]:
@@ -95,11 +137,24 @@ class GeminiHarnessAdapter(HarnessAdapter):
         model: str | None = None,
         api_key: str | None = None,
         timeout_s: float = DEFAULT_TIMEOUT_S,
+        min_request_interval_s: float | None = None,
+        throttle: RequestThrottle | None = None,
+        max_turns: int = DEFAULT_MAX_TURNS,
+        max_time_minutes: int = DEFAULT_MAX_TIME_MINUTES,
     ) -> None:
         self._executable = _as_argv(executable)
         self._model = model
         self._api_key = api_key
         self._timeout_s = timeout_s
+        self._min_request_interval_s = (
+            DEFAULT_MIN_REQUEST_INTERVAL_S
+            if min_request_interval_s is None
+            and self._executable == [DEFAULT_EXECUTABLE]
+            else (min_request_interval_s or 0.0)
+        )
+        self._throttle = throttle or _REQUEST_THROTTLE
+        self._max_turns = max_turns
+        self._max_time_minutes = max_time_minutes
 
     def propose_changes(
         self,
@@ -107,18 +162,33 @@ class GeminiHarnessAdapter(HarnessAdapter):
         feedback: StructuredFeedback | None,
         workspace: Worktree,
     ) -> HarnessResult:
+        self._throttle.wait_for_turn(self._min_request_interval_s)
         argv = [*self._executable, "-p", _build_prompt(objective, feedback)]
         if self._model:
             argv.extend(["-m", self._model])
         argv.extend(["--output-format", "json", "--yolo", "--skip-trust"])
 
-        extra_env = {GEMINI_API_KEY_ENV_VAR: self._api_key} if self._api_key else None
-        result = run_command(
-            argv,
-            cwd=workspace.path,
-            extra_env=extra_env,
-            timeout_s=self._timeout_s,
-        )
+        with tempfile.TemporaryDirectory(prefix="mergegate-gemini-") as cli_home:
+            Path(cli_home, "settings.json").write_text(
+                json.dumps(
+                    {
+                        "runConfig": {
+                            "maxTurns": self._max_turns,
+                            "maxTimeMinutes": self._max_time_minutes,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            extra_env = {"GEMINI_CLI_HOME": cli_home}
+            if self._api_key:
+                extra_env[GEMINI_API_KEY_ENV_VAR] = self._api_key
+            result = run_command(
+                argv,
+                cwd=workspace.path,
+                extra_env=extra_env,
+                timeout_s=self._timeout_s,
+            )
         if result.exit_code == COMMAND_NOT_FOUND_EXIT_CODE:
             raise HarnessError(f"{self._executable[0]!r} executable not found on PATH")
         if not result.succeeded:

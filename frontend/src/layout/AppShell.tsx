@@ -7,10 +7,14 @@ import { NodeLibraryPanel } from "./NodeLibraryPanel";
 import { CanvasArea } from "./CanvasArea";
 import { InspectorPanel } from "../inspector/InspectorPanel";
 import { RunConsole } from "../console/RunConsole";
+import { EvidencePanel } from "../evidence/EvidencePanel";
+import { useAppStore } from "../state/store";
 import "./AppShell.css";
 
 export function AppShell() {
   const [consoleCollapsed, setConsoleCollapsed] = useState(false);
+  const runId = useAppStore((state) => state.runId);
+  const runStatus = useAppStore((state) => state.run?.status);
 
   return (
     <div className="app-shell">
@@ -24,6 +28,7 @@ export function AppShell() {
         collapsed={consoleCollapsed}
         onToggle={() => setConsoleCollapsed((collapsed) => !collapsed)}
       />
+      <EvidencePanel runId={runId} runStatus={runStatus} />
     </div>
   );
 }

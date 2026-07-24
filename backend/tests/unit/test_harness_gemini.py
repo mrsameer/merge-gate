@@ -17,7 +17,11 @@ import pytest
 
 from mergegate.acceptance.commands import run_command
 from mergegate.harness.base import HarnessError, HarnessResult
-from mergegate.harness.gemini import GEMINI_API_KEY_ENV_VAR, GeminiHarnessAdapter
+from mergegate.harness.gemini import (
+    GEMINI_API_KEY_ENV_VAR,
+    GeminiHarnessAdapter,
+    RequestThrottle,
+)
 from mergegate.models.attempt import StructuredFeedback
 from mergegate.workspace.worktree import Worktree, create_worktree
 
@@ -61,6 +65,12 @@ def fake_gemini(tmp_path: Path) -> Path:
             args_file = os.environ.get("FAKE_GEMINI_ARGS_FILE")
             if args_file:
                 pathlib.Path(args_file).write_text(json.dumps(sys.argv[1:]))
+            config_file = os.environ.get("FAKE_GEMINI_CONFIG_FILE")
+            if config_file:
+                home = pathlib.Path(os.environ["GEMINI_CLI_HOME"])
+                pathlib.Path(config_file).write_text(
+                    (home / "settings.json").read_text()
+                )
             write_file = os.environ.get("FAKE_GEMINI_WRITE_FILE")
             if write_file:
                 pathlib.Path(write_file).write_text(
@@ -156,3 +166,43 @@ def test_missing_executable_and_failed_cli_raise_harness_error(
         GeminiHarnessAdapter(
             executable=[sys.executable, str(fake_gemini)]
         ).propose_changes("objective", None, workspace)
+
+
+def test_throttles_back_to_back_gemini_requests(
+    monkeypatch: pytest.MonkeyPatch, workspace: Worktree, fake_gemini: Path
+) -> None:
+    """A provider rate limit is respected before issuing another model call."""
+    timestamps = iter([100.0, 100.0, 101.0, 105.0])
+    waits: list[float] = []
+    throttle = RequestThrottle(clock=lambda: next(timestamps), sleeper=waits.append)
+    adapter = GeminiHarnessAdapter(
+        executable=[sys.executable, str(fake_gemini)],
+        min_request_interval_s=5.0,
+        throttle=throttle,
+    )
+
+    adapter.propose_changes("first", None, workspace)
+    adapter.propose_changes("second", None, workspace)
+
+    assert waits == [4.0]
+
+
+def test_limits_gemini_internal_turns_and_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+    workspace: Worktree,
+    fake_gemini: Path,
+    tmp_path: Path,
+) -> None:
+    config_file = tmp_path / "gemini-settings.json"
+    monkeypatch.setenv("FAKE_GEMINI_CONFIG_FILE", str(config_file))
+    adapter = GeminiHarnessAdapter(
+        executable=[sys.executable, str(fake_gemini)],
+        max_turns=4,
+        max_time_minutes=2,
+    )
+
+    adapter.propose_changes("objective", None, workspace)
+
+    assert json.loads(config_file.read_text()) == {
+        "runConfig": {"maxTurns": 4, "maxTimeMinutes": 2}
+    }
