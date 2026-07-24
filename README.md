@@ -30,46 +30,47 @@ See the [architecture and trust boundaries](docs/architecture.md) and the
 
 ## Track B recorded demonstrations
 
-These local screen recordings use a real three-attempt Claude Code run against
-the bundled `demo-repo`. They are silent evidence clips; use the
-[six-minute narration script](docs/demo-script.md) to present the complete
-five-to-seven-minute walkthrough. The links below open the browser-playable
-MPEG-4 assets published on the
+These are captioned, silent browser walkthroughs. Videos 1 and 2 use an
+isolated local scripted run so the controls and outcomes are reproducible;
+video 3 uses a real three-attempt Claude Code run against the bundled
+`demo-repo`. Use the [six-minute narration script](docs/demo-script.md) to
+present the complete five-to-seven-minute walkthrough. The links below open
+the browser-playable MPEG-4 assets published on the
 [Track B demonstration videos release](https://github.com/mrsameer/merge-gate/releases/tag/track-b-demo-videos-2026-07-25).
 
 1. **Coding objective entered** — [play `01-objective-criteria-workflow.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/01-objective-criteria-workflow.m4v)
-   shows the idempotency objective in the Input inspector.
+   shows selecting the Input node and entering the objective, repository, and provider.
 2. **Success criteria generated or edited** — [play `01-objective-criteria-workflow.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/01-objective-criteria-workflow.m4v)
-   shows the generated, frozen command and API criteria.
+   shows generated criteria, review, save, and explicit contract approval.
 3. **Four-agent loop configured** — [play `01-objective-criteria-workflow.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/01-objective-criteria-workflow.m4v)
    shows Success Criteria, Planning, Execution, and Validator in the canvas.
 4. **Workflow saved or exported** — [play `01-objective-criteria-workflow.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/01-objective-criteria-workflow.m4v)
-   shows the workflow save and YAML export controls.
-5. **Execution against a repository** — [play `02-retry-evidence-inspection.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/02-retry-evidence-inspection.m4v)
-   shows the attempt timeline running against `demo-repo`.
-6. **Real validation evidence** — [play `02-retry-evidence-inspection.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/02-retry-evidence-inspection.m4v)
-   shows `VALID PROOF`, red/green evidence, and acceptance hashes.
+   shows the save and YAML export actions before the run is created.
+5. **Execution against a repository** — [play `01-objective-criteria-workflow.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/01-objective-criteria-workflow.m4v)
+   shows the isolated run executing its approved acceptance contract against `demo-repo`.
+6. **Real validation evidence** — [play `01-objective-criteria-workflow.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/01-objective-criteria-workflow.m4v)
+   shows `VALID PROOF`, the baseline/result verdict, acceptance hashes, and verdict replay.
 7. **Failure feeds another iteration** — [play `02-retry-evidence-inspection.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/02-retry-evidence-inspection.m4v)
-   shows failed attempts and the structured retry feedback in the live console.
+   shows the failed criterion, exact structured feedback, and the next attempt.
 8. **Later success or safe stop** — [play `02-retry-evidence-inspection.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/02-retry-evidence-inspection.m4v)
-   shows attempt three reaching the final merge gate after the earlier failures.
-9. **Inspectable sessions and changes** — [play `02-retry-evidence-inspection.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/02-retry-evidence-inspection.m4v)
-   shows streamed agent actions, commands, worktree paths, diff metadata, and ledger receipts.
+   shows the repeated failure becoming the explicit, safe `NO_PROGRESS` terminal state.
+9. **Inspectable sessions and changes** — [play `03-bonus-cost-streaming-isolation-provider.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/03-bonus-cost-streaming-isolation-provider.m4v)
+   shows streamed agent work, commands, worktree paths, diff metadata, and ledger receipts.
 
 ### Bonus capabilities
 
 - **Token, model-call, and USD tracking** — [play `03-bonus-cost-streaming-isolation-provider.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/03-bonus-cost-streaming-isolation-provider.m4v)
   shows the harness receipt's token, call, and USD values.
 - **Live agent and command streaming** — [play `03-bonus-cost-streaming-isolation-provider.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/03-bonus-cost-streaming-isolation-provider.m4v)
-  shows the agent transcript and command events.
+  shows the Claude Code transcript and command events from the real run.
 - **Isolated git worktrees** — [play `03-bonus-cost-streaming-isolation-provider.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/03-bonus-cost-streaming-isolation-provider.m4v)
-  shows the disposable worktree path recorded for the attempt.
+  shows the disposable worktree path, changed files, and diff recorded for the attempt.
 - **Pause, resume, and checkpoint recovery** — the top-bar controls and SSE-backed run console are covered in the
   [demo script](docs/demo-script.md#before-the-clock) and [run-state guide](#run-states).
 - **Reusable versioned templates** — the default and contradictory YAML fixtures are documented in
   [`demo-repo/fixtures/`](demo-repo/fixtures/).
 - **External coding-harness integration** — [play `03-bonus-cost-streaming-isolation-provider.m4v`](https://github.com/mrsameer/merge-gate/releases/download/track-b-demo-videos-2026-07-25/03-bonus-cost-streaming-isolation-provider.m4v)
-  records the external Claude Code provider and model on a real attempt.
+  records the external Claude Code provider and Sonnet model on a real attempt.
 
 ## Repository map
 
