@@ -63,9 +63,7 @@ test("package.json declares the React Flow canvas + state dependencies", () => {
 
 test("package.json declares Vite + TypeScript 5.x as dev dependencies", () => {
   const { devDependencies = {} } = loadPackageJson();
-  for (const [name, majorPrefix] of Object.entries(
-    EXPECTED_DEV_DEPENDENCIES,
-  )) {
+  for (const [name, majorPrefix] of Object.entries(EXPECTED_DEV_DEPENDENCIES)) {
     assertDeclaresRange(devDependencies, name, majorPrefix);
   }
 });
