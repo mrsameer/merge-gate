@@ -1,3 +1,8 @@
 # macOS junk
 ._*
 .DS_Store
+
+# Python junk
+__pycache__/
+*.py[cod]
+.pytest_cache/
