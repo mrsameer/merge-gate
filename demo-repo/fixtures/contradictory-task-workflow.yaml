@@ -1,0 +1,86 @@
+id: contradictory-task-workflow
+name: Contradictory Status Task
+version: 1.0.0
+nodes:
+- id: input
+  type: Input
+  name: Input
+  config:
+    instructions: POST /orders must return both 200 and 201 for the same successful
+      request.
+- id: success-criteria
+  type: Agent
+  name: Success Criteria
+  config:
+    role: success_criteria
+- id: contract-gate
+  type: HumanGate
+  name: Contract Gate
+- id: planning
+  type: Agent
+  name: Planning
+  config:
+    role: planning
+- id: execution
+  type: Agent
+  name: Execution
+  config:
+    role: execution
+- id: validator
+  type: Validator
+  name: Validator
+  config:
+    role: validation
+- id: decision
+  type: Decision
+  name: Decision
+- id: merge-gate
+  type: HumanGate
+  name: Merge Gate
+- id: success
+  type: Success
+  name: Success
+- id: stop
+  type: Stop
+  name: Stop
+edges:
+- id: e-input-criteria
+  source: input
+  target: success-criteria
+  path: default
+- id: e-criteria-gate
+  source: success-criteria
+  target: contract-gate
+  path: default
+- id: e-gate-planning
+  source: contract-gate
+  target: planning
+  path: success
+- id: e-planning-execution
+  source: planning
+  target: execution
+  path: default
+- id: e-execution-validator
+  source: execution
+  target: validator
+  path: default
+- id: e-validator-decision
+  source: validator
+  target: decision
+  path: default
+- id: e-decision-merge
+  source: decision
+  target: merge-gate
+  path: success
+- id: e-decision-retry
+  source: decision
+  target: planning
+  path: failure
+- id: e-merge-success
+  source: merge-gate
+  target: success
+  path: success
+- id: e-merge-stop
+  source: merge-gate
+  target: stop
+  path: failure
