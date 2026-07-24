@@ -187,6 +187,7 @@ class Run(BaseModel):
     cost: CostAccounting = Field(default_factory=CostAccounting)
     contract: Contract | None = None
     branch_ref: str | None = None
+    undelivered_report: dict[str, Any] | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
 

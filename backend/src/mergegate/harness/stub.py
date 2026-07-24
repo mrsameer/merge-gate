@@ -76,3 +76,62 @@ class StubHarnessAdapter(HarnessAdapter):
             model_calls=0,
             usd=0.0,
         )
+
+
+class AlwaysFailHarnessAdapter(StubHarnessAdapter):
+    """Adds acceptance tests but never fixes implementation — forces retries."""
+
+    def propose_changes(
+        self,
+        *,
+        objective: str,
+        feedback: dict[str, Any] | None,
+        workspace: str,
+    ) -> HarnessResult:
+        self.prepare_acceptance_tests(objective=objective, workspace=workspace)
+        router = Path(workspace) / "app" / "orders" / "router.py"
+        content = router.read_text(encoding="utf-8")
+        attempt_num = int((feedback or {}).get("attempt", 0)) + 1
+        marker = f"# stub-fail-attempt-{attempt_num}"
+        if marker not in content:
+            router.write_text(content + f"\n{marker}\n", encoding="utf-8")
+            return HarnessResult(
+                diff=(
+                    "--- a/app/orders/router.py\n"
+                    f"+++ b/app/orders/router.py\n+{marker}\n"
+                ),
+                changed_files=["app/orders/router.py"],
+                log=f"stub-fail: non-fixing change on attempt {attempt_num}",
+                model_calls=0,
+            )
+        return HarnessResult(
+            diff="",
+            changed_files=[],
+            log="stub-fail: deliberately not implementing fix",
+            model_calls=0,
+        )
+
+
+class NoProgressHarnessAdapter(StubHarnessAdapter):
+    """Repeats the same non-fixing change every attempt — triggers no-progress."""
+
+    _MARKER = "# stub-no-progress-attempt"
+
+    def propose_changes(
+        self,
+        *,
+        objective: str,
+        feedback: dict[str, Any] | None,
+        workspace: str,
+    ) -> HarnessResult:
+        self.prepare_acceptance_tests(objective=objective, workspace=workspace)
+        router = Path(workspace) / "app" / "orders" / "router.py"
+        content = router.read_text(encoding="utf-8")
+        if self._MARKER not in content:
+            router.write_text(content + f"\n{self._MARKER}\n", encoding="utf-8")
+        return HarnessResult(
+            diff="--- a/app/orders/router.py\n+++ b/app/orders/router.py\n# same\n",
+            changed_files=["app/orders/router.py"],
+            log="stub-no-progress: same non-fix applied",
+            model_calls=0,
+        )

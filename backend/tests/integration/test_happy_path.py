@@ -2,35 +2,12 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
-
-import pytest
 from fastapi.testclient import TestClient
-
-from mergegate.api.runs import create_app
-from mergegate.config.settings import Settings
 
 OBJECTIVE = (
     "Add idempotent order creation to POST /orders. Require an Idempotency-Key header. "
     "Do not modify the auth module."
 )
-
-
-@pytest.fixture
-def client(tmp_path: Path) -> TestClient:
-    repo_root = Path(__file__).resolve().parents[3]
-    os.environ["MERGEGATE_DATA_DIR"] = str(tmp_path / "data")
-    os.environ["MERGEGATE_DEMO_REPO_PATH"] = str(repo_root / "demo-repo")
-    import mergegate.config.settings as settings_module
-
-    settings_module.get_settings = lambda: Settings(
-        data_dir=tmp_path / "data",
-        demo_repo_path=repo_root / "demo-repo",
-        harness_provider="stub",
-        default_workflow_id="default-four-role-loop",
-    )
-    return TestClient(create_app())
 
 
 def test_happy_path_objective_to_success(client: TestClient) -> None:

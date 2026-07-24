@@ -57,11 +57,22 @@ export const useRunStore = create<RunState>((set, get) => ({
     const run = get().run;
     if (!run) return;
     const updated = await startRun(run.id);
+    const retryLines =
+      updated.attempts
+        ?.filter((attempt) => attempt.feedback)
+        .map(
+          (attempt) =>
+            `Attempt ${attempt.index} retry: ${attempt.feedback?.criterion} (exit ${attempt.feedback?.exit_code})`,
+        ) ?? [];
     set({
       run: updated,
       log: [
         ...get().log,
-        `Attempt ${updated.current_attempt}: verdict ${updated.status}`,
+        `Run finished: ${updated.status} after ${updated.current_attempt} attempt(s)`,
+        ...retryLines,
+        ...(updated.undelivered_report
+          ? [updated.undelivered_report.message]
+          : []),
       ],
     });
   },

@@ -46,6 +46,18 @@ def capture_diff(worktree_path: Path) -> str:
     return ""
 
 
+def capture_attempt_diff(worktree_path: Path, changed_files: list[str]) -> str:
+    diff = capture_diff(worktree_path)
+    if diff.strip():
+        return diff
+    snapshots: list[str] = []
+    for rel in sorted(changed_files):
+        path = worktree_path / rel
+        if path.exists():
+            snapshots.append(f"--- {rel}\n{path.read_text(encoding='utf-8')}")
+    return "\n".join(snapshots)
+
+
 def discard_worktree(worktree_path: Path, repo_path: Path) -> None:
     if (repo_path / ".git").exists() and (worktree_path / ".git").exists():
         subprocess.run(

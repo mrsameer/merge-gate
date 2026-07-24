@@ -2,7 +2,25 @@ export type RunStatus =
   | "awaiting_gate"
   | "running"
   | "awaiting_final_gate"
-  | "SUCCESS";
+  | "SUCCESS"
+  | "EXHAUSTED"
+  | "NO_PROGRESS";
+
+export interface StructuredFeedback {
+  criterion: string;
+  command: string;
+  exit_code: number;
+  failure_signature: string;
+  first_failing_location: string;
+  attempt: number;
+}
+
+export interface UndeliveredReport {
+  delivered: boolean;
+  reason: string;
+  attempts: number;
+  message: string;
+}
 
 export interface Criterion {
   id: string;
@@ -43,6 +61,8 @@ export interface Attempt {
   index: number;
   verdict?: Verdict | null;
   evidence?: RedGreenEvidence | null;
+  feedback?: StructuredFeedback | null;
+  failure_signature?: string | null;
 }
 
 export interface Run {
@@ -56,6 +76,7 @@ export interface Run {
   branch_ref?: string | null;
   attempts?: Attempt[];
   cost?: { model_calls: number };
+  undelivered_report?: UndeliveredReport | null;
 }
 
 const API_BASE = "/api";
