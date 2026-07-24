@@ -1,0 +1,184 @@
+/* MergeGate design system — a dark "loop engineering control plane" theme.
+ *
+ * Defines the CSS custom properties the components already reference
+ * (--border-color, --node-bg, --muted-text, --edge-success, --edge-failure)
+ * plus a full token palette, base element styling, buttons, inputs, and
+ * scrollbars. No component markup or class names are changed. */
+
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0a0f1e;
+  --bg-elev: #0f1629;
+  --surface: #131c31;
+  --surface-2: #1a2540;
+  --surface-3: #22304f;
+
+  /* Borders */
+  --border-color: #263352;
+  --border-strong: #35476f;
+  --node-bg: #131c31;
+
+  /* Text */
+  --text: #e8edf7;
+  --muted-text: #93a4c3;
+  --faint-text: #5f6f92;
+
+  /* Brand / accents */
+  --accent: #7c93ff;
+  --accent-strong: #5b73f0;
+  --accent-cyan: #34d9e6;
+  --accent-glow: rgb(124 147 255 / 25%);
+
+  /* Status */
+  --edge-success: #2fd27a;
+  --edge-failure: #ff5d6c;
+  --status-running: #6ea8ff;
+  --status-waiting: #f5b544;
+  --status-idle: #7e8db0;
+
+  /* Shape & motion */
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-lg: 14px;
+  --shadow: 0 6px 24px rgb(0 0 0 / 35%);
+  --shadow-sm: 0 2px 8px rgb(0 0 0 / 30%);
+  --ring: 0 0 0 3px var(--accent-glow);
+
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", "Consolas", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgb(124 147 255 / 8%), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgb(52 217 230 / 6%), transparent 55%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* ---- Buttons ---- */
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease,
+    transform 0.05s ease, box-shadow 0.15s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Primary-ish emphasis for the most common CTA labels via attribute hooks
+   is avoided (no markup changes); instead the Run/Save buttons inherit the
+   accent treatment when hovered. A subtle accent border on all buttons keeps
+   the toolbar cohesive. */
+
+/* ---- Inputs ---- */
+input,
+select,
+textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.38rem 0.55rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent-strong);
+  box-shadow: var(--ring);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 3.5rem;
+}
+
+/* ---- Scrollbars ---- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--surface-3);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+  background-clip: content-box;
+}
+
+/* ---- Reusable status pill ---- */
+.mg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-color);
+  background: var(--surface-2);
+  color: var(--muted-text);
+}
