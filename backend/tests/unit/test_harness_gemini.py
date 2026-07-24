@@ -17,7 +17,11 @@ import pytest
 
 from mergegate.acceptance.commands import run_command
 from mergegate.harness.base import HarnessError, HarnessResult
-from mergegate.harness.gemini import GEMINI_API_KEY_ENV_VAR, GeminiHarnessAdapter
+from mergegate.harness.gemini import (
+    GEMINI_API_KEY_ENV_VAR,
+    GeminiHarnessAdapter,
+    RequestThrottle,
+)
 from mergegate.models.attempt import StructuredFeedback
 from mergegate.workspace.worktree import Worktree, create_worktree
 
@@ -156,3 +160,22 @@ def test_missing_executable_and_failed_cli_raise_harness_error(
         GeminiHarnessAdapter(
             executable=[sys.executable, str(fake_gemini)]
         ).propose_changes("objective", None, workspace)
+
+
+def test_throttles_back_to_back_gemini_requests(
+    monkeypatch: pytest.MonkeyPatch, workspace: Worktree, fake_gemini: Path
+) -> None:
+    """A provider rate limit is respected before issuing another model call."""
+    timestamps = iter([100.0, 100.0, 101.0, 105.0])
+    waits: list[float] = []
+    throttle = RequestThrottle(clock=lambda: next(timestamps), sleeper=waits.append)
+    adapter = GeminiHarnessAdapter(
+        executable=[sys.executable, str(fake_gemini)],
+        min_request_interval_s=5.0,
+        throttle=throttle,
+    )
+
+    adapter.propose_changes("first", None, workspace)
+    adapter.propose_changes("second", None, workspace)
+
+    assert waits == [4.0]
