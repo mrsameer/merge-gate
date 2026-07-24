@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergegate.dev/contracts/workflow.schema.json",
+  "title": "MergeGate Workflow",
+  "description": "Serializable node-graph workflow. Exportable/importable as YAML or JSON (FR-028). Paths are data, not code.",
+  "type": "object",
+  "required": ["id", "name", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "name": { "type": "string" },
+    "version": { "type": "string", "description": "Reusable/versioned template id (bonus)" },
+    "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" }, "minItems": 3 },
+    "edges": { "type": "array", "items": { "$ref": "#/$defs/edge" } },
+    "budgets": { "$ref": "#/$defs/budgets" }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "enum": ["Input", "Agent", "Command", "Validator", "Decision", "HumanGate", "Success", "Stop"]
+        },
+        "name": { "type": "string" },
+        "config": { "$ref": "#/$defs/nodeConfig" }
+      }
+    },
+    "nodeConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Only fields relevant to the node type are honored (FR-027/FR-031).",
+      "properties": {
+        "role": { "enum": ["success_criteria", "planning", "execution", "validation"] },
+        "instructions": { "type": "string" },
+        "provider": { "type": "string", "description": "Harness provider; selected via config, not hardcoded (FR-034)" },
+        "model": { "type": "string" },
+        "tools": { "type": "array", "items": { "type": "string" } },
+        "command": { "type": "string" },
+        "timeout_s": { "type": "integer", "minimum": 1 },
+        "criteria_ref": { "type": "string" },
+        "retry_limit": { "type": "integer", "minimum": 0 },
+        "completion_condition": { "type": "string" },
+        "success_path": { "type": "string", "description": "target node id" },
+        "failure_path": { "type": "string", "description": "target node id" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["source", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "path": { "enum": ["default", "success", "failure"], "default": "default" }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_attempts": { "type": "integer", "minimum": 1 },
+        "max_wall_clock_s": { "type": "integer", "minimum": 1 },
+        "max_model_calls": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

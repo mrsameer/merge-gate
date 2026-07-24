@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mergegate.dev/contracts/evidence-bundle.schema.json",
+  "title": "MergeGate Evidence Bundle",
+  "description": "Proof-carrying record exported per completed run (FR-020, Principle III). Replayable and hash-chain verifiable.",
+  "type": "object",
+  "required": [
+    "run_id", "terminal_state", "contract", "plan", "diff", "commands",
+    "red_green_evidence", "policy_results", "retries", "acceptance_hash",
+    "cost", "time", "ledger"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "run_id": { "type": "string" },
+    "terminal_state": {
+      "enum": ["SUCCESS", "CLARIFICATION_REQUIRED", "HUMAN_REJECTED", "EXHAUSTED", "NO_PROGRESS", "TIMED_OUT", "POLICY_BLOCKED", "CANCELLED"]
+    },
+    "contract": {
+      "type": "object",
+      "required": ["mode", "criteria", "frozen_hash"],
+      "properties": {
+        "mode": { "enum": ["user_defined", "agent_generated", "hybrid"] },
+        "criteria": { "type": "array", "items": { "type": "object" } },
+        "frozen_hash": { "type": "string" }
+      }
+    },
+    "plan": { "type": "string" },
+    "diff": { "type": "string" },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["command", "exit_code", "duration_ms"],
+        "properties": {
+          "command": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "stdout": { "type": "string" },
+          "stderr": { "type": "string" },
+          "duration_ms": { "type": "integer" }
+        }
+      }
+    },
+    "red_green_evidence": {
+      "type": "object",
+      "description": "Red-before/green-after proof (FR-009).",
+      "required": ["baseline", "result", "verdict"],
+      "properties": {
+        "baseline": { "enum": ["FAILED", "PASSED"], "description": "MUST be FAILED for a valid proof" },
+        "result": { "enum": ["FAILED", "PASSED"] },
+        "verdict": { "enum": ["VALID_PROOF", "INVALID"] },
+        "test_hash": { "type": "string" },
+        "baseline_hash": { "type": "string" },
+        "result_hash": { "type": "string" }
+      }
+    },
+    "policy_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule", "passed"],
+        "properties": {
+          "rule": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "offending": { "type": "string", "description": "path or pattern when blocked" }
+        }
+      }
+    },
+    "retries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["attempt", "failure_signature"],
+        "properties": {
+          "attempt": { "type": "integer" },
+          "failure_signature": { "type": "string" },
+          "feedback": { "type": "object" }
+        }
+      }
+    },
+    "acceptance_hash": { "type": "string" },
+    "acceptance_input": {
+      "type": "object",
+      "description": "Inputs that make the verdict replayable (FR-010).",
+      "properties": {
+        "commit_sha": { "type": "string" },
+        "validation_config": { "type": "object" },
+        "tool_versions": { "type": "object" },
+        "env_fingerprint": { "type": "string" }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "properties": {
+        "tokens": { "type": "integer" },
+        "model_calls": { "type": "integer" },
+        "usd": { "type": "number" }
+      }
+    },
+    "time": {
+      "type": "object",
+      "properties": {
+        "started_at": { "type": "string", "format": "date-time" },
+        "ended_at": { "type": "string", "format": "date-time" },
+        "wall_clock_s": { "type": "number" }
+      }
+    },
+    "ledger": {
+      "type": "array",
+      "description": "Full append-only hash-chained event log for tamper verification (FR-019).",
+      "items": {
+        "type": "object",
+        "required": ["seq", "type", "hash", "prev_hash"],
+        "properties": {
+          "seq": { "type": "integer" },
+          "ts": { "type": "string", "format": "date-time" },
+          "type": { "type": "string" },
+          "payload": { "type": "object" },
+          "prev_hash": { "type": "string" },
+          "hash": { "type": "string" }
+        }
+      }
+    }
+  }
+}
