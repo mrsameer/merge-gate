@@ -9,6 +9,13 @@ from mergegate.models.budget import Budget, CostAccounting
 from mergegate.models.enums import RunStatus
 
 
+class ClarificationRequest(BaseModel):
+    """Structured operator decision required before a run may execute."""
+
+    reason: str
+    conflicting_criteria: list[str] = Field(min_length=1)
+
+
 class Run(BaseModel):
     """A single execution of a workflow against an objective."""
 
@@ -28,3 +35,4 @@ class Run(BaseModel):
     branch: str | None = None
     patch_ref: str | None = None
     undelivered_report: dict | None = None
+    clarification: ClarificationRequest | None = None

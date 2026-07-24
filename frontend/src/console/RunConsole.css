@@ -17,6 +17,34 @@
   font-size: 0.8rem;
 }
 
+.run-console__clarification {
+  grid-column: 1 / -1;
+  padding: 0.75rem;
+  border: 1px solid #f59e0b;
+  border-left-width: 4px;
+  border-radius: 0.25rem;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.run-console__clarification h2,
+.run-console__clarification p {
+  margin: 0;
+}
+
+.run-console__clarification h2 {
+  margin-bottom: 0.35rem;
+  font-size: 0.95rem;
+}
+
+.run-console__clarification p + p {
+  margin-top: 0.35rem;
+}
+
+.run-console__no-attempt {
+  font-weight: 600;
+}
+
 .run-console__statuses {
   list-style: none;
   margin: 0;

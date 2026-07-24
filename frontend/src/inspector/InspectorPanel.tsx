@@ -68,6 +68,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
   const setRun = useAppStore((s) => s.setRun);
   const setContract = useAppStore((s) => s.setContract);
   const setCriteria = useAppStore((s) => s.setCriteria);
+  const setClarification = useAppStore((s) => s.setClarification);
 
   const [repoRef, setRepoRef] = useState(DEFAULT_REPO_REF);
   const [provider, setProvider] = useState("scripted");
@@ -107,8 +108,10 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
       setNotice(null);
       const result = await client.generateCriteria(runId, "hybrid");
       if ("criteria" in result) {
+        setClarification(null);
         setContract(result);
       } else {
+        setClarification(result.clarification);
         setNotice(`Clarification needed: ${result.clarification.reason}`);
       }
     });
@@ -277,7 +280,11 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
       )}
 
       <h2>Run</h2>
-      <button type="button" onClick={handleStart} disabled={busy || !approved}>
+      <button
+        type="button"
+        onClick={handleStart}
+        disabled={busy || !approved || run?.status === "CLARIFICATION_REQUIRED"}
+      >
         Start run
       </button>
       {runId && (

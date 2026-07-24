@@ -90,6 +90,7 @@ export interface Run {
   cost: CostAccounting;
   started_at?: string | null;
   ended_at?: string | null;
+  clarification?: Clarification | null;
 }
 
 // Attempt/Verdict/LedgerEntry are read-mostly payloads whose full field set

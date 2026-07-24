@@ -24,7 +24,8 @@ from typing import cast
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-from mergegate.models import Run, RunStatus, Workflow
+from mergegate.criteria.consistency import ConsistencyIssue
+from mergegate.models import ClarificationRequest, Run, RunStatus, Workflow
 from mergegate.orchestrator.graph import GraphState, build_graph
 
 _NON_TERMINAL = frozenset(
@@ -69,6 +70,39 @@ def transition(run: Run, to: RunStatus) -> None:
         run.started_at = now
     if is_terminal(to):
         run.ended_at = now
+
+
+def require_clarification(
+    run: Run,
+    issue: ConsistencyIssue,
+    on_terminal: Callable[[dict], None] | None = None,
+) -> ClarificationRequest:
+    """Halt ``run`` with a structured request before any attempt is created.
+
+    The caller must invoke this at the pre-execution boundary.  Keeping the
+    terminal transition here makes the zero-attempt invariant explicit and
+    gives REST and SSE consumers the same payload.
+    """
+
+    if run.current_attempt != 0 or run.attempts:
+        raise InvalidTransition(
+            "clarification must be requested before an execution attempt"
+        )
+    clarification = ClarificationRequest(
+        reason=issue.reason,
+        conflicting_criteria=list(issue.conflicting_criteria),
+    )
+    run.clarification = clarification
+    transition(run, RunStatus.CLARIFICATION_REQUIRED)
+    if on_terminal is not None:
+        on_terminal(
+            {
+                "status": RunStatus.CLARIFICATION_REQUIRED.value,
+                "clarification": clarification.model_dump(mode="json"),
+                "current_attempt": 0,
+            }
+        )
+    return clarification
 
 
 class Runner:

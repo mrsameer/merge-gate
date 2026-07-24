@@ -48,6 +48,12 @@ def objective() -> str:
 
 
 @pytest.fixture()
+def contradictory_objective() -> str:
+    """The saved impossible objective used by the US4 clarification demo."""
+    return CONTRADICTORY_OBJECTIVE
+
+
+@pytest.fixture()
 def app():
     """The FastAPI application under test.
 

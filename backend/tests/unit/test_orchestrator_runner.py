@@ -11,6 +11,7 @@ import json
 
 import pytest
 
+from mergegate.criteria.consistency import ConsistencyIssue
 from mergegate.models import Run, RunStatus
 from mergegate.models.budget import Budget, CostAccounting
 from mergegate.orchestrator.graph import GraphState, load_workflow_config
@@ -18,6 +19,7 @@ from mergegate.orchestrator.runner import (
     InvalidTransition,
     Runner,
     is_terminal,
+    require_clarification,
     transition,
 )
 
@@ -145,6 +147,39 @@ def test_transition_sets_started_at_and_ended_at() -> None:
     assert run.ended_at is None
     transition(run, RunStatus.CANCELLED)
     assert run.ended_at is not None
+
+
+def test_require_clarification_is_terminal_structured_and_zero_attempt() -> None:
+    run = _make_run()
+    terminal_payloads: list[dict] = []
+
+    clarification = require_clarification(
+        run,
+        ConsistencyIssue(
+            reason="The same request cannot return both HTTP 200 and HTTP 201.",
+            conflicting_criteria=("status-200", "status-201"),
+        ),
+        on_terminal=terminal_payloads.append,
+    )
+
+    assert run.status == RunStatus.CLARIFICATION_REQUIRED
+    assert run.current_attempt == 0
+    assert run.attempts == []
+    assert run.started_at is None
+    assert run.ended_at is not None
+    assert run.clarification == clarification
+    assert terminal_payloads == [
+        {
+            "status": "CLARIFICATION_REQUIRED",
+            "clarification": {
+                "reason": (
+                    "The same request cannot return both HTTP 200 and HTTP 201."
+                ),
+                "conflicting_criteria": ["status-200", "status-201"],
+            },
+            "current_attempt": 0,
+        }
+    ]
 
 
 # --- pause/resume/stop transitions on the Runner --------------------------
