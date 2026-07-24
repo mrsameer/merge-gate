@@ -1,0 +1,87 @@
+.inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inspector-section h2 {
+  margin: 0.75rem 0 0;
+  font-size: 0.9rem;
+}
+
+.inspector-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.inspector-field textarea,
+.inspector-field input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.inspector-details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.inspector-details dt {
+  color: var(--muted-text, #6b7280);
+}
+
+.inspector-details dd {
+  margin: 0;
+}
+
+.inspector-status,
+.inspector-notice {
+  font-size: 0.8rem;
+  color: var(--muted-text, #6b7280);
+}
+
+.inspector-criteria {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.inspector-criterion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.inspector-criterion__meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.inspector-criterion__type {
+  color: var(--muted-text, #6b7280);
+}
+
+.inspector-criterion input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: monospace;
+}
+
+.inspector-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.inspector-error {
+  font-size: 0.8rem;
+  color: var(--edge-failure, #dc2626);
+}

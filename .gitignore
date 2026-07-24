@@ -11,3 +11,8 @@ __pycache__/
 node_modules/
 dist/
 *.tsbuildinfo
+
+# Secrets / local env
+.env
+.env.*
+*.env

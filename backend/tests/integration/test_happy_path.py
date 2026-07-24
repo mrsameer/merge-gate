@@ -134,8 +134,10 @@ def test_verdict_comes_from_acceptance_engine_not_the_agent(
     _poll_until(
         client,
         run_id,
-        lambda b: b.get("current_attempt", 0) >= 1
-        and b["status"] in (TERMINAL_STATES | {"awaiting_gate"}),
+        lambda b: (
+            b.get("current_attempt", 0) >= 1
+            and b["status"] in (TERMINAL_STATES | {"awaiting_gate"})
+        ),
     )
 
     attempts = client.get(f"/api/runs/{run_id}/attempts")

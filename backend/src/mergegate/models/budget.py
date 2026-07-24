@@ -12,8 +12,13 @@ class Budget(BaseModel):
 
 
 class CostAccounting(BaseModel):
-    """Accumulated model usage and spend for a Run (FR-022)."""
+    """Accumulated model usage, spend, and wall-clock for a Run (FR-022).
+
+    ``wall_clock_s`` accumulates the harness's execution wall-clock across
+    attempts, alongside the token / model-call / USD usage the harness reports.
+    """
 
     tokens: int = 0
     model_calls: int = 0
     usd: float = 0.0
+    wall_clock_s: float = 0.0
