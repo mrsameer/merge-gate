@@ -42,9 +42,15 @@ export function RunConsole({
   const setRetry = useAppStore((s) => s.setRetry);
   const clarification = useAppStore((s) => s.clarification);
   const setClarification = useAppStore((s) => s.setClarification);
-  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
-  const [ledgerError, setLedgerError] = useState<string | null>(null);
-  const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
+  const [ledgerState, setLedgerState] = useState<{
+    runId: string;
+    entries: LedgerEntry[];
+    error: string | null;
+  }>({ runId: "", entries: [], error: null });
+  const [selectedEntry, setSelectedEntry] = useState<{
+    runId: string;
+    entry: LedgerEntry;
+  } | null>(null);
 
   useEffect(() => {
     if (!runId) return;
@@ -53,23 +59,27 @@ export function RunConsole({
       .getLedger(runId)
       .then((entries) => {
         if (!active) return;
-        setLedger(entries);
-        setLedgerError(null);
+        setLedgerState({ runId, entries, error: null });
       })
       .catch(() => {
         if (!active) return;
-        setLedger([]);
-        setLedgerError(
-          "Ledger unavailable. The durable timeline could not load.",
-        );
+        setLedgerState({
+          runId,
+          entries: [],
+          error: "Ledger unavailable. The durable timeline could not load.",
+        });
       });
     return () => {
       active = false;
     };
   }, [client, runId, events.length]);
 
-  const visibleLedger = runId ? ledger : [];
-  const visibleSelectedEntry = runId ? selectedEntry : null;
+  const visibleLedger =
+    runId && ledgerState.runId === runId ? ledgerState.entries : [];
+  const ledgerError =
+    runId && ledgerState.runId === runId ? ledgerState.error : null;
+  const visibleSelectedEntry =
+    runId && selectedEntry?.runId === runId ? selectedEntry.entry : null;
 
   useEffect(() => {
     if (!runId) return;
@@ -230,7 +240,9 @@ export function RunConsole({
                   <button
                     type="button"
                     data-testid={`ledger-event-${entry.seq}`}
-                    onClick={() => setSelectedEntry(entry)}
+                    onClick={() => {
+                      if (runId) setSelectedEntry({ runId, entry });
+                    }}
                   >
                     <span>#{entry.seq}</span>
                     <strong>{entry.type}</strong>

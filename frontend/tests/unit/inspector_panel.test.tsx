@@ -73,6 +73,11 @@ describe("InspectorPanel", () => {
     expect(screen.getByLabelText("Success path")).toBeInTheDocument();
     expect(screen.getByLabelText("Failure path")).toBeInTheDocument();
     expect(screen.queryByLabelText("Command")).not.toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Aider" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Claude Agent SDK" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Codex" })).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Instructions"), {
       target: { value: "Implement the approved plan." },
@@ -84,6 +89,37 @@ describe("InspectorPanel", () => {
         .workflow.nodes.find((node) => node.id === "execution")?.config
         ?.instructions,
     ).toBe("Implement the approved plan.");
+  });
+
+  it("removes a configured path from both node config and graph edges", () => {
+    useAppStore.getState().selectNode("decision");
+    render(<InspectorPanel client={{} as ApiClient} />);
+
+    fireEvent.change(screen.getByLabelText("Success path"), {
+      target: { value: "merge-gate" },
+    });
+    expect(
+      useAppStore
+        .getState()
+        .workflow.edges.some(
+          (edge) => edge.source === "decision" && edge.path === "success",
+        ),
+    ).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Success path"), {
+      target: { value: "" },
+    });
+
+    const workflow = useAppStore.getState().workflow;
+    expect(
+      workflow.edges.some(
+        (edge) => edge.source === "decision" && edge.path === "success",
+      ),
+    ).toBe(false);
+    expect(
+      workflow.nodes.find((node) => node.id === "decision")?.config
+        ?.success_path,
+    ).toBe("");
   });
 
   it("creates a run from the objective and stores the run id", async () => {
@@ -255,6 +291,38 @@ describe("InspectorPanel", () => {
       reason: "The same request cannot return both HTTP 200 and HTTP 201.",
       conflicting_criteria: ["feature-exists"],
     });
+    expect(screen.getByRole("button", { name: /start run/i })).toBeDisabled();
+  });
+
+  it("reports a generated clarification without presenting criteria to approve", async () => {
+    const generateCriteria = vi.fn().mockResolvedValue({
+      clarification: {
+        reason: "The success statuses conflict.",
+        conflicting_criteria: ["status-200", "status-201"],
+      },
+    });
+    useAppStore.setState({
+      selectedNodeId: "input",
+      runId: "run-1",
+      run: makeRun(),
+      objective: "return both statuses",
+    });
+    render(
+      <InspectorPanel client={{ generateCriteria } as unknown as ApiClient} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /generate criteria/i }));
+
+    expect(
+      await screen.findByText(
+        /clarification needed: the success statuses conflict/i,
+      ),
+    ).toBeInTheDocument();
+    expect(useAppStore.getState().clarification).toEqual({
+      reason: "The success statuses conflict.",
+      conflicting_criteria: ["status-200", "status-201"],
+    });
+    expect(screen.queryByTestId("criteria-list")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /start run/i })).toBeDisabled();
   });
 

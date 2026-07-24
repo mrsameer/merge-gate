@@ -105,8 +105,7 @@ function NodeSettingsEditor({ node }: { node: WorkflowNode }) {
   ) => updateNode(node.id, { config: { [key]: value } });
 
   const updatePath = (path: EdgePath, target: string) => {
-    updateConfig(path === "success" ? "success_path" : "failure_path", target);
-    if (target) connectNodes(node.id, target, path);
+    connectNodes(node.id, target, path);
   };
 
   const hasTimeout = ["Agent", "Command", "Validator"].includes(node.type);
@@ -160,8 +159,11 @@ function NodeSettingsEditor({ node }: { node: WorkflowNode }) {
               onChange={(event) => updateConfig("provider", event.target.value)}
             >
               <option value="">Use run default</option>
+              <option value="aider">Aider</option>
               <option value="gemini">Gemini</option>
               <option value="anthropic">Claude Code</option>
+              <option value="claude-agent-sdk">Claude Agent SDK</option>
+              <option value="codex">Codex</option>
               <option value="cursor">Cursor</option>
               <option value="scripted">Scripted</option>
             </select>
@@ -446,7 +448,10 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
           onChange={(e) => setProvider(e.target.value)}
         >
           <option value="scripted">Scripted demo</option>
+          <option value="aider">Aider</option>
           <option value="anthropic">Claude Code</option>
+          <option value="claude-agent-sdk">Claude Agent SDK</option>
+          <option value="codex">Codex</option>
           <option value="gemini">Gemini CLI</option>
           <option value="cursor">Cursor</option>
         </select>
