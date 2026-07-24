@@ -11,9 +11,11 @@ this adapter intentionally does not handle OAuth tokens itself.
 from __future__ import annotations
 
 import json
+import tempfile
 import threading
 import time
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Any
 
 from mergegate.acceptance.commands import COMMAND_NOT_FOUND_EXIT_CODE, run_command
@@ -24,6 +26,8 @@ from mergegate.workspace.worktree import Worktree, capture_diff
 DEFAULT_EXECUTABLE = "gemini"
 DEFAULT_TIMEOUT_S = 600.0
 DEFAULT_MIN_REQUEST_INTERVAL_S = 10.0
+DEFAULT_MAX_TURNS = 8
+DEFAULT_MAX_TIME_MINUTES = 5
 GEMINI_API_KEY_ENV_VAR = "GEMINI_API_KEY"
 
 
@@ -135,6 +139,8 @@ class GeminiHarnessAdapter(HarnessAdapter):
         timeout_s: float = DEFAULT_TIMEOUT_S,
         min_request_interval_s: float | None = None,
         throttle: RequestThrottle | None = None,
+        max_turns: int = DEFAULT_MAX_TURNS,
+        max_time_minutes: int = DEFAULT_MAX_TIME_MINUTES,
     ) -> None:
         self._executable = _as_argv(executable)
         self._model = model
@@ -147,6 +153,8 @@ class GeminiHarnessAdapter(HarnessAdapter):
             else (min_request_interval_s or 0.0)
         )
         self._throttle = throttle or _REQUEST_THROTTLE
+        self._max_turns = max_turns
+        self._max_time_minutes = max_time_minutes
 
     def propose_changes(
         self,
@@ -160,13 +168,27 @@ class GeminiHarnessAdapter(HarnessAdapter):
             argv.extend(["-m", self._model])
         argv.extend(["--output-format", "json", "--yolo", "--skip-trust"])
 
-        extra_env = {GEMINI_API_KEY_ENV_VAR: self._api_key} if self._api_key else None
-        result = run_command(
-            argv,
-            cwd=workspace.path,
-            extra_env=extra_env,
-            timeout_s=self._timeout_s,
-        )
+        with tempfile.TemporaryDirectory(prefix="mergegate-gemini-") as cli_home:
+            Path(cli_home, "settings.json").write_text(
+                json.dumps(
+                    {
+                        "runConfig": {
+                            "maxTurns": self._max_turns,
+                            "maxTimeMinutes": self._max_time_minutes,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            extra_env = {"GEMINI_CLI_HOME": cli_home}
+            if self._api_key:
+                extra_env[GEMINI_API_KEY_ENV_VAR] = self._api_key
+            result = run_command(
+                argv,
+                cwd=workspace.path,
+                extra_env=extra_env,
+                timeout_s=self._timeout_s,
+            )
         if result.exit_code == COMMAND_NOT_FOUND_EXIT_CODE:
             raise HarnessError(f"{self._executable[0]!r} executable not found on PATH")
         if not result.succeeded:
