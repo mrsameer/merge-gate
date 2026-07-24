@@ -13,10 +13,15 @@ import { useAppStore } from "../state/store";
 import type { RunStatus } from "../api";
 import "./RunConsole.css";
 
-type ConnectFn = (runId: string, handlers: RunEventHandlers) => RunEventsClient;
+type ConnectFn = (
+  runId: string,
+  handlers: RunEventHandlers,
+  lastEventId: number | null,
+  onEventId: (eventId: number) => void,
+) => RunEventsClient;
 
-const defaultConnect: ConnectFn = (runId, handlers) =>
-  connectRunEvents(runId, handlers);
+const defaultConnect: ConnectFn = (runId, handlers, lastEventId, onEventId) =>
+  connectRunEvents(runId, handlers, { lastEventId, onEventId });
 const defaultClient = createApiClient();
 
 export interface RunConsoleProps {
@@ -36,6 +41,7 @@ export function RunConsole({
   const events = useAppStore((s) => s.events);
   const nodeStatuses = useAppStore((s) => s.nodeStatuses);
   const appendEvent = useAppStore((s) => s.appendEvent);
+  const setLastEventId = useAppStore((s) => s.setLastEventId);
   const applyNodeStatus = useAppStore((s) => s.applyNodeStatus);
   const setRunStatus = useAppStore((s) => s.setRunStatus);
   const retry = useAppStore((s) => s.retry);
@@ -145,13 +151,19 @@ export function RunConsole({
       },
     };
 
-    const client = connect(runId, handlers);
-    return () => client.close();
+    const eventsClient = connect(
+      runId,
+      handlers,
+      useAppStore.getState().lastEventId,
+      setLastEventId,
+    );
+    return () => eventsClient.close();
   }, [
     runId,
     connect,
     appendEvent,
     applyNodeStatus,
+    setLastEventId,
     setRetry,
     setClarification,
     setRunStatus,

@@ -5,7 +5,12 @@ is the separate, LLM-free module that decides pass/fail.
 """
 
 from mergegate.harness.aider import AiderHarnessAdapter
-from mergegate.harness.base import HarnessAdapter, HarnessError, HarnessResult
+from mergegate.harness.base import (
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    HarnessTimeoutError,
+)
 from mergegate.harness.claude_agent_sdk import ClaudeAgentSDKHarnessAdapter
 from mergegate.harness.codex import CodexHarnessAdapter
 from mergegate.harness.cursor import CursorAdapter
@@ -20,4 +25,5 @@ __all__ = [
     "HarnessAdapter",
     "HarnessError",
     "HarnessResult",
+    "HarnessTimeoutError",
 ]

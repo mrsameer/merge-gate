@@ -141,6 +141,25 @@ describe("InspectorPanel", () => {
     );
   });
 
+  it("shows the persisted run configuration after a page-level recovery", () => {
+    useAppStore.getState().selectNode("input");
+    useAppStore.getState().setRun(
+      makeRun({
+        repo_ref: "/worktrees/recovered-repo",
+        provider: "gemini",
+        model: "gemini-2.5-flash",
+      }),
+    );
+
+    render(<InspectorPanel client={{} as ApiClient} />);
+
+    expect(screen.getByLabelText("Repository")).toHaveValue(
+      "/worktrees/recovered-repo",
+    );
+    expect(screen.getByLabelText("Provider")).toHaveValue("gemini");
+    expect(screen.getByLabelText("Model")).toHaveValue("gemini-2.5-flash");
+  });
+
   it("lets the operator choose Gemini and sends it with the run request", async () => {
     const createRun = vi
       .fn()

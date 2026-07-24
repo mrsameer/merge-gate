@@ -74,7 +74,12 @@ describe("RunConsole", () => {
       <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
     );
 
-    expect(connect).toHaveBeenCalledWith("run-1", expect.any(Object));
+    expect(connect).toHaveBeenCalledWith(
+      "run-1",
+      expect.any(Object),
+      null,
+      expect.any(Function),
+    );
 
     act(() => captured?.node_status?.({ node: "execution", attempt: 1 }));
     expect(

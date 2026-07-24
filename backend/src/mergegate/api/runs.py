@@ -151,7 +151,13 @@ class RejectRequest(BaseModel):
 def _require_record(run_id: str) -> RunRecord:
     record = store.get_run(run_id)
     if record is None:
-        raise HTTPException(status_code=404, detail=f"run {run_id!r} not found")
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"run {run_id!r} not found; active run recovery after a backend "
+                "restart is not supported by the process-local v1 store"
+            ),
+        )
     return record
 
 
@@ -459,10 +465,16 @@ def start_run(run_id: str) -> JSONResponse:
 
     issue = detect_inconsistency(record.contract)
     if issue is not None:
+
+        def emit_clarification_terminal(payload: dict) -> None:
+            if record.ledger is not None:
+                record.ledger.append(LedgerEntryType.TERMINAL, payload)
+            emit("terminal", payload)
+
         runner.require_clarification(
             run,
             issue,
-            on_terminal=lambda payload: emit("terminal", payload),
+            on_terminal=emit_clarification_terminal,
         )
         return _run_json(run)
 
