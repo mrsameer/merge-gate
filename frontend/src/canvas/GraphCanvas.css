@@ -4,54 +4,213 @@
   min-height: 480px;
 }
 
-.role-node {
-  min-width: 140px;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border-color, #ccc);
-  border-radius: 6px;
-  background: var(--node-bg, #fff);
-  font-size: 0.8rem;
+/* React Flow surface — v12 theme variables */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-background-pattern-color: #29365a;
+  --xy-edge-stroke: var(--border-strong);
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-attribution-background-color: transparent;
 }
 
+.react-flow__background {
+  background: transparent;
+}
+
+.react-flow__attribution {
+  background: transparent !important;
+  color: var(--faint-text);
+}
+
+.react-flow__edge-path {
+  stroke: var(--border-strong);
+  stroke-width: 1.6;
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--accent);
+}
+
+.react-flow__handle {
+  width: 9px;
+  height: 9px;
+  background: var(--accent);
+  border: 2px solid var(--bg-elev);
+}
+
+/* Controls / minimap chrome to match the dark theme */
+.react-flow__controls {
+  box-shadow: var(--shadow);
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  bottom: 16px !important;
+  left: 16px !important;
+}
+
+.react-flow__controls-button {
+  background: var(--surface);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text);
+  fill: var(--text);
+  width: 32px;
+  height: 32px;
+  padding: 7px;
+  transition: background 0.12s ease;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--surface-3);
+}
+
+.react-flow__controls-button svg {
+  fill: var(--muted-text);
+}
+
+.react-flow__controls-button:hover svg {
+  fill: var(--text);
+}
+
+.react-flow__minimap {
+  background: var(--surface) !important;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- Node card ---------- */
+.role-node {
+  position: relative;
+  min-width: 168px;
+  padding: 0.6rem 0.8rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--surface), var(--node-bg));
+  color: var(--text);
+  font-size: 0.8rem;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease,
+    transform 0.08s ease;
+}
+
+/* Accent stripe down the left edge, coloured per node type. */
+.role-node::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+}
+
+.role-node:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+.role-node--input::before { background: #38bdf8; }
+.role-node--agent::before { background: var(--accent); }
+.role-node--command::before { background: #a78bfa; }
+.role-node--validator::before { background: var(--accent-cyan); }
+.role-node--decision::before { background: #f5b544; }
+.role-node--humangate::before { background: #f472b6; }
+.role-node--success::before { background: var(--edge-success); }
+.role-node--stop::before { background: var(--edge-failure); }
+
+/* Runtime status treatments */
 .role-node[data-status="running"] {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 2px rgb(37 99 235 / 20%);
+  border-color: var(--status-running);
+  box-shadow: 0 0 0 2px rgb(110 168 255 / 25%), var(--shadow);
+  animation: role-node-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes role-node-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgb(110 168 255 / 20%), var(--shadow-sm); }
+  50% { box-shadow: 0 0 0 4px rgb(110 168 255 / 30%), var(--shadow); }
 }
 
 .role-node[data-status="passed"] {
-  border-color: var(--edge-success, #16a34a);
+  border-color: var(--edge-success);
+  box-shadow: 0 0 0 1px rgb(47 210 122 / 30%), var(--shadow-sm);
 }
 
 .role-node[data-status="failed"],
 .role-node[data-status="blocked"] {
-  border-color: var(--edge-failure, #dc2626);
+  border-color: var(--edge-failure);
+  box-shadow: 0 0 0 1px rgb(255 93 108 / 30%), var(--shadow-sm);
+}
+
+.role-node[data-status="waiting"] {
+  border-color: var(--status-waiting);
 }
 
 .role-node__header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  font-weight: 600;
+  font-weight: 700;
+}
+
+.role-node__name {
+  letter-spacing: -0.01em;
 }
 
 .role-node__type {
-  font-weight: 400;
-  color: var(--muted-text, #6b7280);
+  font-weight: 600;
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-text);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-elev);
 }
 
 .role-node__status {
-  margin-top: 0.25rem;
+  margin-top: 0.4rem;
+  display: inline-block;
   text-transform: uppercase;
-  font-size: 0.7rem;
-  color: var(--muted-text, #6b7280);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--muted-text);
 }
+
+.role-node[data-status="running"] .role-node__status { color: var(--status-running); }
+.role-node[data-status="passed"] .role-node__status { color: var(--edge-success); }
+.role-node[data-status="failed"] .role-node__status,
+.role-node[data-status="blocked"] .role-node__status { color: var(--edge-failure); }
+.role-node[data-status="waiting"] .role-node__status { color: var(--status-waiting); }
 
 .role-node__summary {
-  margin-top: 0.25rem;
-  color: var(--muted-text, #6b7280);
+  margin-top: 0.3rem;
+  color: var(--muted-text);
+  font-size: 0.72rem;
+  line-height: 1.4;
 }
 
-.role-node__attempt,
+.role-node__attempt {
+  margin-top: 0.4rem;
+  display: inline-block;
+  font-size: 0.66rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--faint-text);
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+}
+
 .role-node__result {
-  margin-top: 0.25rem;
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
