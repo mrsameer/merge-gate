@@ -1,0 +1,16 @@
+.git
+.gitignore
+._*
+.DS_Store
+.claude
+.playwright-cli
+.pytest_cache
+**/.pytest_cache
+**/__pycache__
+**/*.pyc
+**/.venv
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+.env
+.env.*
