@@ -25,7 +25,10 @@ DEFAULT_PROVIDER = "cursor"
 DEFAULT_MODEL = "auto"
 DEFAULT_MAX_ATTEMPTS = 5
 DEFAULT_MAX_WALL_CLOCK_S = 1800
-DEFAULT_MAX_MODEL_CALLS = 20
+# A single real coding-agent attempt spends ~30 model turns; the scripted
+# demo provider spends ~1. Keep the default high enough that live providers
+# complete an attempt instead of tripping the budget on turn 20.
+DEFAULT_MAX_MODEL_CALLS = 120
 
 PROVIDER_ENV_VAR = "MERGEGATE_PROVIDER"
 MODEL_ENV_VAR = "MERGEGATE_MODEL"

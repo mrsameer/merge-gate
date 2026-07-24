@@ -86,6 +86,7 @@ export interface AppState {
   setRetry: (retry: RetryState | null) => void;
   setClarification: (clarification: Clarification | null) => void;
   setPolicy: (policy: Policy) => void;
+  resetRun: () => void;
   reset: () => void;
 }
 
@@ -216,6 +217,21 @@ export const useAppStore = create<AppState>()(
 
       setClarification: (clarification) => set({ clarification }),
       setPolicy: (policy) => set({ policy }),
+
+      // Clear run-scoped state for a fresh run while preserving the workflow
+      // graph, node positions, and policy the operator has set up.
+      resetRun: () =>
+        set({
+          objective: "",
+          runId: null,
+          contract: null,
+          run: null,
+          nodeStatuses: {},
+          events: [],
+          lastEventId: null,
+          retry: null,
+          clarification: null,
+        }),
 
       reset: () => set(initialState()),
     }),

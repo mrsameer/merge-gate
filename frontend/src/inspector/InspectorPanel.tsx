@@ -14,8 +14,8 @@ import "./InspectorPanel.css";
 const DEFAULT_REPO_REF = "demo-repo";
 const DEFAULT_BUDGETS: Budget = {
   max_attempts: 3,
-  max_wall_clock_s: 600,
-  max_model_calls: 20,
+  max_wall_clock_s: 1800,
+  max_model_calls: 120,
 };
 
 const defaultClient = createApiClient();
@@ -323,6 +323,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
   const setContract = useAppStore((s) => s.setContract);
   const setCriteria = useAppStore((s) => s.setCriteria);
   const setClarification = useAppStore((s) => s.setClarification);
+  const resetRun = useAppStore((s) => s.resetRun);
   const policy = useAppStore((s) => s.policy);
 
   const [repoRef, setRepoRef] = useState(DEFAULT_REPO_REF);
@@ -558,6 +559,19 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
             Approve merge
           </button>
         )}
+      {runId && (
+        <button
+          type="button"
+          onClick={() => {
+            setError(null);
+            setNotice(null);
+            resetRun();
+          }}
+          disabled={busy}
+        >
+          New run
+        </button>
+      )}
 
       {error && (
         <p
