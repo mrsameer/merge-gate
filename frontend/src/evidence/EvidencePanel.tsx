@@ -20,10 +20,14 @@ const defaultClient = createApiClient();
 export function EvidencePanel({
   runId,
   runStatus,
+  currentAttempt,
+  hasCompletedVerdict,
   client = defaultClient,
 }: {
   runId: string | null;
   runStatus?: string;
+  currentAttempt?: number;
+  hasCompletedVerdict?: boolean;
   client?: ApiClient;
 }) {
   const [evidenceState, setEvidenceState] = useState<{
@@ -39,7 +43,7 @@ export function EvidencePanel({
   }>({ runId: "", message: null, error: null, pending: false });
 
   useEffect(() => {
-    if (!runId) return;
+    if (!runId || currentAttempt === 0 || hasCompletedVerdict === false) return;
     let active = true;
     void client
       .getEvidence(runId)
@@ -63,7 +67,7 @@ export function EvidencePanel({
     return () => {
       active = false;
     };
-  }, [client, runId, runStatus]);
+  }, [client, currentAttempt, hasCompletedVerdict, runId, runStatus]);
 
   if (!runId) return null;
   const evidence = evidenceState.runId === runId ? evidenceState.payload : null;

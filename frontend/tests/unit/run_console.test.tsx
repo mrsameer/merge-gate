@@ -171,6 +171,32 @@ describe("RunConsole", () => {
     );
   });
 
+  it("does not leave active nodes marked running after a terminal timeout", async () => {
+    let captured: RunEventHandlers | undefined;
+    useAppStore.setState({
+      runId: "run-1",
+      nodeStatuses: { baseline: "running", execution: "running" },
+    });
+    const connect = vi.fn((_runId: string, handlers: RunEventHandlers) => {
+      captured = handlers;
+      return { close: vi.fn() };
+    });
+
+    render(
+      <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
+    );
+
+    act(() => captured?.terminal?.({ status: "TIMED_OUT" }));
+
+    expect(
+      await screen.findByTestId("node-status-execution"),
+    ).toHaveTextContent("failed");
+    expect(screen.getByTestId("node-status-baseline")).toHaveTextContent(
+      "failed",
+    );
+    expect(screen.queryByText("running")).not.toBeInTheDocument();
+  });
+
   it("renders a truthful clarification panel and zero-attempt evidence", async () => {
     let captured: RunEventHandlers | undefined;
     useAppStore.setState({

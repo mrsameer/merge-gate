@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import signal
 import subprocess
 import time
 from collections.abc import Mapping, Sequence
@@ -142,6 +143,10 @@ def run_command(
             text=True,
             encoding="utf-8",
             errors="replace",
+            # A timed-out coding agent can leave shell/tool descendants alive.
+            # Give every command an isolated process group so the timeout path
+            # can close the entire tree and then drain its capture pipes.
+            start_new_session=os.name == "posix",
         )
     except FileNotFoundError as exc:
         duration_ms = int((time.monotonic() - started) * 1000)
@@ -160,7 +165,13 @@ def run_command(
         stdout, stderr = process.communicate(timeout=timeout_s)
         exit_code = process.returncode
     except subprocess.TimeoutExpired:
-        process.kill()
+        if os.name == "posix":
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                process.kill()
+        else:
+            process.kill()
         # Drain whatever the killed process had already written.
         stdout, stderr = process.communicate()
         timed_out = True

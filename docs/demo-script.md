@@ -15,9 +15,7 @@ that a task-specific test detects the missing behavior on unchanged code.
 
 ## Before the clock
 
-1. Start MergeGate with the [local instructions](../README.md#local-setup).
-   The current Compose image omits development test tools, so use it for the
-   health/UI and truthful safe-stop demonstration, not for this passing proof.
+1. Start MergeGate with the [local or Docker instructions](../README.md).
 2. Verify the API health endpoint and open <http://localhost:5173>.
 3. Keep these files ready to import:
    - [`default-four-role-workflow.yaml`](../demo-repo/fixtures/default-four-role-workflow.yaml)

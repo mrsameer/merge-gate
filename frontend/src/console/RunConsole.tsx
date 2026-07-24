@@ -146,7 +146,24 @@ export function RunConsole({
           applyNodeStatus("execution", "skipped");
           applyNodeStatus("validation", "skipped");
         }
-        if (payload.status) setRunStatus(payload.status);
+        if (payload.status) {
+          const settledStatus =
+            payload.status === "SUCCESS"
+              ? "passed"
+              : [
+                    "CLARIFICATION_REQUIRED",
+                    "HUMAN_REJECTED",
+                    "CANCELLED",
+                  ].includes(payload.status)
+                ? "skipped"
+                : "failed";
+          for (const [node, status] of Object.entries(
+            useAppStore.getState().nodeStatuses,
+          )) {
+            if (status === "running") applyNodeStatus(node, settledStatus);
+          }
+          setRunStatus(payload.status);
+        }
         record("terminal")(data);
       },
     };

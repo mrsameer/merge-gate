@@ -94,13 +94,11 @@ Open <http://localhost:5173>. Stop and remove the containers when finished:
 docker compose down
 ```
 
-The shipped backend image does not install development test tools or
-third-party provider CLIs. Compose therefore validates service health, the
-browser control plane, workflow persistence, criteria generation, and truthful
-retry/safe-stop behavior out of the box. Use the local setup for the complete
-passing Track B proof or Gemini CLI. Extending the backend image with the target
-repository's test tools is required before claiming a passing containerized
-acceptance run; never describe a missing tool as success.
+The shipped backend image includes the locked test tools needed by the bundled
+demo acceptance contract, so Compose supports the complete credential-free
+scripted proof. It does not install third-party provider CLIs. Use local setup
+for Gemini CLI, or extend the backend image explicitly; never describe a
+missing CLI as a successful model run.
 
 ## Vertex AI Gemini 2.5 Flash in Mumbai
 

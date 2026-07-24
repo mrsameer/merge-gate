@@ -15,6 +15,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 COMPOSE_FILE = ROOT / "docker-compose.yml"
+BACKEND_DOCKERFILE = ROOT / "backend" / "Dockerfile"
 
 
 def _compose() -> dict:
@@ -60,6 +61,14 @@ def test_container_build_inputs_and_reverse_proxy_are_present() -> None:
     }
 
     assert not sorted(str(path) for path in required if not path.is_file())
+
+
+def test_backend_image_includes_the_demo_acceptance_test_runner() -> None:
+    """The Compose demo must be able to execute its generated pytest criteria."""
+    dockerfile = BACKEND_DOCKERFILE.read_text()
+
+    assert "uv sync --frozen --no-dev" not in dockerfile
+    assert "uv sync --frozen" in dockerfile
 
 
 def test_docker_compose_configuration_resolves() -> None:

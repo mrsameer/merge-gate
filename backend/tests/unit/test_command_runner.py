@@ -12,6 +12,7 @@ self-contained and cross-platform (no dependence on shell built-ins).
 from __future__ import annotations
 
 import sys
+import time
 
 from mergegate.acceptance.commands import (
     COMMAND_NOT_FOUND_EXIT_CODE,
@@ -71,6 +72,27 @@ def test_timeout_is_captured_not_raised() -> None:
     assert result.succeeded is False
     # The command was bounded well under its 30s sleep.
     assert result.duration_ms < 5_000
+
+
+def test_timeout_terminates_child_processes_holding_capture_pipes(tmp_path) -> None:
+    marker = tmp_path / "orphan-survived"
+    child = (
+        "import pathlib,time; "
+        "time.sleep(0.8); "
+        f"pathlib.Path({str(marker)!r}).write_text('survived')"
+    )
+    parent = (
+        "import subprocess,sys,time; "
+        f"subprocess.Popen([sys.executable, '-c', {child!r}]); "
+        "time.sleep(30)"
+    )
+
+    result = run_command(_py(parent), timeout_s=0.1)
+    time.sleep(1)
+
+    assert result.timed_out is True
+    assert result.duration_ms < 1_000
+    assert not marker.exists()
 
 
 def test_missing_executable_returns_127_without_raising() -> None:

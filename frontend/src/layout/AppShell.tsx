@@ -15,6 +15,12 @@ export function AppShell() {
   const [consoleCollapsed, setConsoleCollapsed] = useState(false);
   const runId = useAppStore((state) => state.runId);
   const runStatus = useAppStore((state) => state.run?.status);
+  const currentAttempt = useAppStore(
+    (state) => state.run?.current_attempt ?? 0,
+  );
+  const hasCompletedVerdict = useAppStore((state) =>
+    state.events.some((event) => event.type === "verdict"),
+  );
 
   return (
     <div className="app-shell">
@@ -28,7 +34,12 @@ export function AppShell() {
         collapsed={consoleCollapsed}
         onToggle={() => setConsoleCollapsed((collapsed) => !collapsed)}
       />
-      <EvidencePanel runId={runId} runStatus={runStatus} />
+      <EvidencePanel
+        runId={runId}
+        runStatus={runStatus}
+        currentAttempt={currentAttempt}
+        hasCompletedVerdict={hasCompletedVerdict}
+      />
     </div>
   );
 }

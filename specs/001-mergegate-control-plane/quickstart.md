@@ -11,24 +11,28 @@ This guide proves the feature works end-to-end. It references [contracts/](contr
 - Python 3.11+ with `uv` installed (backend).
 - Node 20+ (frontend).
 - `git` on PATH (worktree isolation).
-- A configured harness provider (default: Cursor CLI headless) with valid credentials/credits.
-  The provider is selected via config/env — no provider is hardcoded (FR-034).
+- The credential-free `Scripted demo` provider for deterministic scenarios A–F. External
+  providers remain selectable per run; they are not required for the reproducible path (FR-034).
 
 ## Setup
 
 ```bash
 # Backend
 cd backend
-uv sync
+uv sync --frozen
 uv run uvicorn mergegate.api.main:app --reload --port 8000
 
 # Frontend (separate terminal)
 cd frontend
-npm install
+npm ci
 npm run dev   # serves the control plane UI, proxying /api to :8000
 ```
 
 The `demo-repo/` FastAPI order service is the target repository for the validation scenarios below.
+Save the default workflow before creating a run. For a live Vertex AI variant, authenticate with
+ADC, set `GOOGLE_GENAI_USE_VERTEXAI=true`, `GOOGLE_CLOUD_LOCATION=asia-south1`, and
+`GOOGLE_CLOUD_PROJECT`, then choose Gemini CLI / `gemini-2.5-flash` in the Input inspector.
+Never set or commit an API key for that ADC-backed validation.
 
 ## Scenario A — Happy path: objective → contract → run → success (US1, US2, US3)
 
@@ -40,17 +44,17 @@ The `demo-repo/` FastAPI order service is the target repository for the validati
 3. In the Input node, enter the objective: *"Add idempotent order creation to `POST /orders`.
    Require an `Idempotency-Key` header. Same key + same body → original order, no new row. Same key
    + different body → HTTP 409. Add tests + OpenAPI docs. Do not modify the auth module."*
-4. Trigger criteria generation (hybrid). **Expect** a contract with criteria including `unit-tests`,
-   `task-tests` (baseline fail / result pass), `coverage ≥ 85`, `openapi-contract`, `protected-files`,
-   `duplicate-order` (FR-001c).
-5. Edit one criterion (e.g., raise coverage), then approve the contract at the Human Gate. **Expect**
-   the contract to freeze (FR-003).
-6. Start the run. **Expect** attempt 1 to create a git worktree, write the acceptance tests + a
-   minimal stub, and the `task-tests` check to **fail for real** (genuine red).
-7. **Expect** the failure to return to Planning as structured feedback (criterion, command, exit
-   code, location) and the attempt counter to advance (FR-012).
-8. **Expect** attempt 2 to implement the behavior and the same suite to pass.
-9. Approve the final merge gate. **Expect** terminal state `SUCCESS` and a branch/patch reference.
+4. Trigger criteria generation (hybrid). **Expect** the six repository-grounded criteria:
+   `feature-exists`, `existing-tests`, `new-tests`, `idempotency-key-required`,
+   `idempotent-order-reuse`, and `idempotency-key-conflict` (FR-001c).
+5. Make an equivalent command edit (for example change one pytest `-q` flag to `-qq`), save it,
+   then approve the contract at the Human Gate. **Expect** the contract to freeze (FR-003).
+6. Start the run. **Expect** attempt 1 to create an isolated git worktree and apply the scripted
+   idempotency change. The acceptance engine separately runs the unchanged baseline and the
+   proposed result: task-specific checks fail for real on the baseline and pass on the result.
+   The baseline red is proof of a missing feature, not a fabricated failed execution attempt.
+7. **Expect** the run to stop at the final merge gate with `VALID PROOF`, not at `SUCCESS`.
+8. Approve the final merge gate. **Expect** terminal state `SUCCESS` and a branch/patch reference.
 
 **Pass criteria**: SC-001, SC-002, SC-003, SC-004, SC-010 demonstrated; verdict produced by the
 acceptance engine, not the agent.
@@ -64,7 +68,9 @@ acceptance engine, not the agent.
 
 ## Scenario C — Anti-cheat policy (US5)
 
-1. Run a variant where the agent attempts to edit `app/auth/**` or insert `pytest.mark.skip`.
+1. Run the policy integration variant where the attempted diff edits `app/auth/**` or inserts
+   `pytest.mark.skip` (the deterministic fixture is
+   `backend/tests/integration/test_policy.py`).
 2. **Expect** terminal state `POLICY_BLOCKED` with the offending path/pattern named (FR-017/FR-018,
    SC-007). No verdict is granted.
 
@@ -77,7 +83,8 @@ acceptance engine, not the agent.
 
 ## Scenario E — Bounded autonomy & clean rollback (US3)
 
-1. Run a task engineered to keep failing with the same signature.
+1. In a second scripted UI run, replace `feature-exists` with
+   `python -c "import sys; sys.exit(1)"`, then save, approve, and start.
 2. **Expect** the run to stop as `NO_PROGRESS` (or `EXHAUSTED` on budget), the worktree discarded,
    the base repo left green, and an honest undelivered report (FR-013/FR-014/FR-015, SC-005).
 
@@ -88,7 +95,8 @@ acceptance engine, not the agent.
 2. Click any completed/failed node in the run console. **Expect** its agent input/output, commands
    and tools used, files changed, validation results, retry reason, and status (FR-032/FR-033).
 3. Export `evidence-bundle.json`. Alter any prior ledger entry and re-verify. **Expect** the hash
-   chain to fail verification (FR-019, SC-008).
+   chain to fail verification at the changed sequence (FR-019, SC-008). The executable tamper
+   check is `backend/tests/integration/test_evidence_bundle.py`.
 
 ## Reliability suite (SC-011)
 
@@ -102,3 +110,5 @@ attempts; (8) contradictory criteria → clarification; (9) mid-run browser refr
 - Backend contract tests: `cd backend && uv run pytest tests/contract`
 - Backend integration (loop/replay/rollback/clarification/policy): `uv run pytest tests/integration`
 - Frontend component tests: `cd frontend && npm test`
+- Containerized UI: `docker compose up --build --wait` (the backend image includes the locked
+  demo acceptance test runner)

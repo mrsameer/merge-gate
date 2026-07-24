@@ -36,6 +36,39 @@ const bundle = {
 };
 
 describe("EvidencePanel", () => {
+  it("does not request evidence before an execution attempt exists", () => {
+    const getEvidence = vi.fn().mockResolvedValue(evidence);
+
+    render(
+      <EvidencePanel
+        runId="run-1"
+        runStatus="awaiting_gate"
+        currentAttempt={0}
+        client={{ getEvidence } as unknown as ApiClient}
+      />,
+    );
+
+    expect(getEvidence).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("does not request evidence while an attempt has no verdict", () => {
+    const getEvidence = vi.fn().mockResolvedValue(evidence);
+
+    render(
+      <EvidencePanel
+        runId="run-1"
+        runStatus="running"
+        currentAttempt={1}
+        hasCompletedVerdict={false}
+        client={{ getEvidence } as unknown as ApiClient}
+      />,
+    );
+
+    expect(getEvidence).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("renders proof hashes and replays the completed verdict", async () => {
     const getEvidence = vi.fn().mockResolvedValue(evidence);
     const replayRun = vi.fn().mockResolvedValue({
