@@ -141,13 +141,13 @@ independently testable increment. Paths follow the web-app layout in plan.md
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T044 [P] [US4] Integration test contradictory criteria → CLARIFICATION_REQUIRED (no attempt) in `backend/tests/integration/test_clarification.py`
+- [x] T044 [P] [US4] Integration test contradictory criteria → CLARIFICATION_REQUIRED (no attempt) in `backend/tests/integration/test_clarification.py`
 
 ### Implementation for User Story 4
 
-- [ ] T045 [US4] Criteria consistency/contradiction detector in `backend/src/mergegate/criteria/consistency.py` (depends on T023)
-- [ ] T046 [US4] `CLARIFICATION_REQUIRED` terminal path + structured request payload in `backend/src/mergegate/orchestrator/runner.py` (depends on T045)
-- [ ] T047 [P] [US4] Clarification-request UI panel in `frontend/src/console/` (depends on T030)
+- [x] T045 [US4] Criteria consistency/contradiction detector in `backend/src/mergegate/criteria/consistency.py` (depends on T023)
+- [x] T046 [US4] `CLARIFICATION_REQUIRED` terminal path + structured request payload in `backend/src/mergegate/orchestrator/runner.py` (depends on T045)
+- [x] T047 [P] [US4] Clarification-request UI panel in `frontend/src/console/` (depends on T030)
 
 **Checkpoint**: Clarification story demonstrable independently
 

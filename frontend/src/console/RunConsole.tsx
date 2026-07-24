@@ -17,6 +17,22 @@ export function RunConsole() {
       {run?.undelivered_report ? (
         <p role="alert">{run.undelivered_report.message}</p>
       ) : null}
+      {run?.clarification_request ? (
+        <section role="alert" aria-label="Clarification required">
+          <h3>Clarification required</h3>
+          <p>{run.clarification_request.message}</p>
+          <ul>
+            {run.clarification_request.conflicts.map((conflict) => (
+              <li key={conflict.kind + conflict.detail}>
+                {conflict.detail}
+                {conflict.criteria_ids.length ? (
+                  <span> ({conflict.criteria_ids.join(", ")})</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <div>
         <button type="button" onClick={() => void executeRun()}>
           Start run

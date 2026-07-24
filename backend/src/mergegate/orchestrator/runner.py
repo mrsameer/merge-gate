@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from mergegate.acceptance.feedback import build_failure_feedback
 from mergegate.config.settings import get_settings
+from mergegate.criteria.consistency import detect_contradictions
 from mergegate.criteria.contract import freeze_contract
 from mergegate.harness.stub import (
     AlwaysFailHarnessAdapter,
@@ -13,7 +14,14 @@ from mergegate.harness.stub import (
     StubHarnessAdapter,
 )
 from mergegate.ledger.store import RunStore
-from mergegate.models import Attempt, Run, RunStatus, StructuredFeedback, Verdict
+from mergegate.models import (
+    Attempt,
+    ClarificationRequest,
+    Run,
+    RunStatus,
+    StructuredFeedback,
+    Verdict,
+)
 from mergegate.orchestrator.budgets import budget_exhausted
 from mergegate.orchestrator.cost import accumulate_cost
 from mergegate.orchestrator.gates import approve_final_gate
@@ -147,9 +155,32 @@ class RunOrchestrator:
         )
         return self.store.save(run)
 
+    def _terminate_clarification(
+        self, run: Run, clarification: ClarificationRequest
+    ) -> Run:
+        run.clarification_request = clarification
+        run.status = RunStatus.CLARIFICATION_REQUIRED
+        run.ended_at = datetime.now(tz=UTC)
+        payload = clarification.model_dump(mode="json")
+        self.store.ledger.append(run.id, "clarification", payload)
+        self.store.ledger.append(
+            run.id,
+            "terminal",
+            {
+                "state": RunStatus.CLARIFICATION_REQUIRED.value,
+                "reason": clarification.reason,
+            },
+        )
+        return self.store.save(run)
+
     def start_run(self, run: Run) -> Run:
         if run.contract is None or not run.contract.approved:
             raise ValueError("contract not approved")
+
+        clarification = detect_contradictions(run.contract, objective=run.objective)
+        if clarification is not None:
+            return self._terminate_clarification(run, clarification)
+
         run.status = RunStatus.RUNNING
         run.started_at = datetime.now(tz=UTC)
         run.undelivered_report = None

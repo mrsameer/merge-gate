@@ -6,6 +6,43 @@ from uuid import uuid4
 from mergegate.models import Contract, Criterion, CriterionType, ExpectedResult
 
 
+def _is_contradictory_status_objective(objective: str) -> bool:
+    lower = objective.lower()
+    return (
+        "200" in lower
+        and "201" in lower
+        and ("both" in lower or "same successful" in lower or "same request" in lower)
+    )
+
+
+def _contradictory_status_criteria() -> list[Criterion]:
+    endpoint = "POST /orders"
+    return [
+        Criterion(
+            id="response-status-200",
+            type=CriterionType.COMMAND,
+            priority=1,
+            params={
+                "check": "status_code",
+                "endpoint": endpoint,
+                "http_status": 200,
+            },
+            result_expected=ExpectedResult.PASS,
+        ),
+        Criterion(
+            id="response-status-201",
+            type=CriterionType.COMMAND,
+            priority=2,
+            params={
+                "check": "status_code",
+                "endpoint": endpoint,
+                "http_status": 201,
+            },
+            result_expected=ExpectedResult.PASS,
+        ),
+    ]
+
+
 def map_repo(repo_path: Path) -> dict[str, list[str]]:
     files: list[str] = []
     for path in repo_path.rglob("*"):
@@ -18,7 +55,11 @@ def generate_hybrid_criteria(
     *, run_id: str, objective: str, repo_path: Path
 ) -> Contract:
     repo_map = map_repo(repo_path)
-    criteria = [
+    criteria: list[Criterion] = []
+    if _is_contradictory_status_objective(objective):
+        criteria.extend(_contradictory_status_criteria())
+    criteria.extend(
+        [
         Criterion(
             id="existing-tests",
             type=CriterionType.COMMAND,
@@ -35,6 +76,7 @@ def generate_hybrid_criteria(
             result_expected=ExpectedResult.PASS,
         ),
     ]
+    )
     if "idempotency" in objective.lower() or "order" in objective.lower():
         criteria.insert(
             0,

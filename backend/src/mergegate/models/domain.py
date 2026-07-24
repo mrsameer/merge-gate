@@ -147,6 +147,19 @@ class StructuredFeedback(BaseModel):
     attempt: int
 
 
+class ClarificationConflict(BaseModel):
+    kind: str
+    criteria_ids: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class ClarificationRequest(BaseModel):
+    reason: str
+    message: str
+    conflicts: list[ClarificationConflict] = Field(default_factory=list)
+    objective: str = ""
+
+
 class RedGreenEvidence(BaseModel):
     criterion_id: str
     baseline: str
@@ -188,6 +201,7 @@ class Run(BaseModel):
     contract: Contract | None = None
     branch_ref: str | None = None
     undelivered_report: dict[str, Any] | None = None
+    clarification_request: ClarificationRequest | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
 

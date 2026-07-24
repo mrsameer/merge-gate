@@ -4,7 +4,21 @@ export type RunStatus =
   | "awaiting_final_gate"
   | "SUCCESS"
   | "EXHAUSTED"
-  | "NO_PROGRESS";
+  | "NO_PROGRESS"
+  | "CLARIFICATION_REQUIRED";
+
+export interface ClarificationConflict {
+  kind: string;
+  criteria_ids: string[];
+  detail: string;
+}
+
+export interface ClarificationRequest {
+  reason: string;
+  message: string;
+  conflicts: ClarificationConflict[];
+  objective: string;
+}
 
 export interface StructuredFeedback {
   criterion: string;
@@ -77,6 +91,7 @@ export interface Run {
   attempts?: Attempt[];
   cost?: { model_calls: number };
   undelivered_report?: UndeliveredReport | null;
+  clarification_request?: ClarificationRequest | null;
 }
 
 const API_BASE = "/api";

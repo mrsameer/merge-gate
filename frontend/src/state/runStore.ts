@@ -73,6 +73,9 @@ export const useRunStore = create<RunState>((set, get) => ({
         ...(updated.undelivered_report
           ? [updated.undelivered_report.message]
           : []),
+        ...(updated.clarification_request
+          ? [`Clarification required: ${updated.clarification_request.message}`]
+          : []),
       ],
     });
   },
