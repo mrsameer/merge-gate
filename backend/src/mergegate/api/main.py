@@ -17,6 +17,8 @@ from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from mergegate.api.events import router as events_router
+
 app = FastAPI(title="MergeGate Control Plane")
 
 api_router = APIRouter(prefix="/api")
@@ -27,6 +29,8 @@ def health() -> dict[str, str]:
     """Liveness probe proving the router is wired into the app."""
     return {"status": "ok"}
 
+
+api_router.include_router(events_router)
 
 app.include_router(api_router)
 

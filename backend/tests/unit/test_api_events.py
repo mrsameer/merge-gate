@@ -10,8 +10,11 @@ Written FIRST and MUST FAIL (ModuleNotFoundError) until T011 lands.
 
 from __future__ import annotations
 
+import json
+from typing import cast
+
 import anyio
-import httpx
+from starlette.requests import Request
 
 
 def test_publish_assigns_monotonic_per_run_sequence() -> None:
@@ -24,9 +27,7 @@ def test_publish_assigns_monotonic_per_run_sequence() -> None:
     second = bus.publish(
         "run-1", "node_status", {"node_id": "planning", "status": "done"}
     )
-    other_run = bus.publish(
-        "run-2", "gate", {"kind": "contract", "state": "awaiting"}
-    )
+    other_run = bus.publish("run-2", "gate", {"kind": "contract", "state": "awaiting"})
 
     assert (first.seq, second.seq) == (1, 2)
     assert other_run.seq == 1
@@ -74,65 +75,62 @@ def test_subscribe_streams_new_events_published_after_subscription() -> None:
     assert anyio.run(scenario) == 1
 
 
-def test_stream_endpoint_emits_buffered_event_with_last_event_id() -> None:
-    from mergegate.api.events import event_bus
-    from mergegate.api.main import app
+def _request(path: str, last_event_id: str | None = None) -> Request:
+    """A minimal ASGI request whose `receive()` never reports a disconnect.
+
+    The endpoint is exercised directly (rather than through an HTTP test
+    client) because `httpx.ASGITransport` runs the whole ASGI call to
+    completion before returning a response, which can never work for a
+    stream that only ends when the client disconnects.
+    """
+    headers = [(b"last-event-id", last_event_id.encode())] if last_event_id else []
+
+    async def receive() -> dict:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    return Request(
+        {"type": "http", "method": "GET", "path": path, "headers": headers}, receive
+    )
+
+
+def test_stream_endpoint_yields_buffered_event_as_sse_payload() -> None:
+    from mergegate.api.events import event_bus, stream_run_events
 
     run_id = "run-endpoint-test"
     event_bus.publish(
         run_id, "node_status", {"node_id": "planning", "status": "running"}
     )
 
-    async def scenario() -> list[str]:
-        transport = httpx.ASGITransport(app=app)
-        lines: list[str] = []
-        async with httpx.AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as client:
-            async with client.stream("GET", f"/api/runs/{run_id}/events") as response:
-                assert response.status_code == 200
-                assert response.headers["content-type"].startswith(
-                    "text/event-stream"
-                )
-                async for line in response.aiter_lines():
-                    lines.append(line)
-                    if line.startswith("data:"):
-                        break
-        return lines
+    async def scenario() -> dict:
+        response = await stream_run_events(run_id, _request(f"/runs/{run_id}/events"))
+        assert response.media_type == "text/event-stream"
+        return cast(dict, await anext(aiter(response.body_iterator)))
 
-    lines = anyio.run(scenario)
-    assert "event: node_status" in lines
-    assert "id: 1" in lines
-    assert (
-        'data: {"node_id": "planning", "status": "running"}' in lines
-    )
+    item = anyio.run(scenario)
+    assert item == {
+        "id": "1",
+        "event": "node_status",
+        "data": json.dumps({"node_id": "planning", "status": "running"}),
+    }
 
 
 def test_stream_endpoint_reconnect_replays_only_events_after_last_event_id() -> None:
-    from mergegate.api.events import event_bus
-    from mergegate.api.main import app
+    from mergegate.api.events import event_bus, stream_run_events
 
     run_id = "run-reconnect-test"
     event_bus.publish(run_id, "node_status", {"node_id": "planning", "status": "run"})
     event_bus.publish(run_id, "node_status", {"node_id": "planning", "status": "done"})
 
-    async def scenario() -> list[str]:
-        transport = httpx.ASGITransport(app=app)
-        lines: list[str] = []
-        async with httpx.AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as client:
-            async with client.stream(
-                "GET",
-                f"/api/runs/{run_id}/events",
-                headers={"Last-Event-ID": "1"},
-            ) as response:
-                async for line in response.aiter_lines():
-                    lines.append(line)
-                    if line.startswith("data:"):
-                        break
-        return lines
+    async def scenario() -> dict:
+        request = _request(f"/runs/{run_id}/events", last_event_id="1")
+        response = await stream_run_events(run_id, request)
+        return cast(dict, await anext(aiter(response.body_iterator)))
 
-    lines = anyio.run(scenario)
-    assert "id: 2" in lines
-    assert "id: 1" not in lines
+    item = anyio.run(scenario)
+    assert item["id"] == "2"
+
+
+def test_events_router_is_wired_into_app() -> None:
+    from mergegate.api.main import app
+
+    assert app.url_path_for("stream_run_events", run_id="abc") == "/api/runs/abc/events"
