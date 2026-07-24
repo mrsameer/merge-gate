@@ -26,9 +26,19 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "anyio>=4.12.1",
+    "httpx>=0.28.1",
     "pyright>=1.1.411",
+    "pytest>=8.4.2",
     "ruff>=0.16.0",
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mergegate"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [tool.ruff]
 line-length = 88
