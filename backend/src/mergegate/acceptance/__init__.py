@@ -13,11 +13,21 @@ from mergegate.acceptance.commands import (
     CommandResult,
     run_command,
 )
+from mergegate.acceptance.verdict import (
+    ACCEPTANCE_INPUT_KEYS,
+    build_acceptance_input,
+    compute_acceptance_hash,
+    compute_verdict,
+)
 
 __all__ = [
+    "ACCEPTANCE_INPUT_KEYS",
     "COMMAND_NOT_FOUND_EXIT_CODE",
     "DEFAULT_TIMEOUT_S",
     "TIMEOUT_EXIT_CODE",
     "CommandResult",
+    "build_acceptance_input",
+    "compute_acceptance_hash",
+    "compute_verdict",
     "run_command",
 ]
