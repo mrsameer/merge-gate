@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, TypedDict
 
 import yaml
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -52,8 +53,16 @@ def load_workflow_config(source: str | Path) -> Workflow:
     return Workflow.model_validate(data)
 
 
-def build_graph(workflow: Workflow) -> CompiledStateGraph:
-    """Assemble `workflow` into a compiled LangGraph `StateGraph`."""
+def build_graph(
+    workflow: Workflow, *, checkpointer: BaseCheckpointSaver | None = None
+) -> CompiledStateGraph:
+    """Assemble `workflow` into a compiled LangGraph `StateGraph`.
+
+    `checkpointer` wires in durable, replayable execution (T013): with one
+    attached, the compiled graph persists state after every superstep so a
+    `Runner` can pause and later resume a run from its last checkpoint
+    instead of restarting it.
+    """
     graph = StateGraph(GraphState)
     for node in workflow.nodes:
         graph.add_node(node.id, _passthrough_action(node.id))
@@ -71,7 +80,7 @@ def build_graph(workflow: Workflow) -> CompiledStateGraph:
             continue
         _wire_outgoing_edges(graph, node.id, edges_by_source.get(node.id, []))
 
-    return graph.compile()
+    return graph.compile(checkpointer=checkpointer)
 
 
 def _wire_outgoing_edges(
