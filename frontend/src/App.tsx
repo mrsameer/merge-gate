@@ -1,5 +1,7 @@
+import { AppShell } from "./layout/AppShell";
+
 function App() {
-  return <div>MergeGate</div>;
+  return <AppShell />;
 }
 
 export default App;
