@@ -13,6 +13,13 @@ export interface ConsoleEvent {
   data: Record<string, unknown>;
 }
 
+export interface RetryState {
+  attempt: number;
+  maxAttempts: number;
+  reason: string;
+  feedback?: Record<string, unknown>;
+}
+
 export interface AppState {
   selectedNodeId: string | null;
   objective: string;
@@ -21,6 +28,7 @@ export interface AppState {
   run: Run | null;
   nodeStatuses: Record<string, string>;
   events: ConsoleEvent[];
+  retry: RetryState | null;
 
   selectNode: (nodeId: string | null) => void;
   setObjective: (objective: string) => void;
@@ -29,6 +37,7 @@ export interface AppState {
   setCriteria: (criteria: Criterion[]) => void;
   applyNodeStatus: (node: string, status: string) => void;
   appendEvent: (type: string, data: Record<string, unknown>) => void;
+  setRetry: (retry: RetryState | null) => void;
   reset: () => void;
 }
 
@@ -40,6 +49,7 @@ const initialState = {
   run: null,
   nodeStatuses: {},
   events: [],
+  retry: null,
 } satisfies Partial<AppState>;
 
 export const useAppStore = create<AppState>((set) => ({
@@ -68,6 +78,8 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       events: [...state.events, { seq: state.events.length + 1, type, data }],
     })),
+
+  setRetry: (retry) => set({ retry }),
 
   reset: () => set({ ...initialState }),
 }));

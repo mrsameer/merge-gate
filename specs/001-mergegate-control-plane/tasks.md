@@ -118,16 +118,16 @@ independently testable increment. Paths follow the web-app layout in plan.md
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T037 [P] [US3] Integration test exhaustion → rollback and no-progress → safe stop in `backend/tests/integration/test_bounded.py`
+- [X] T037 [P] [US3] Integration test exhaustion → rollback and no-progress → safe stop in `backend/tests/integration/test_bounded.py`
 
 ### Implementation for User Story 3
 
-- [ ] T038 [US3] Structured failure feedback builder (criterion, command, exit_code, signature, location, attempt) in `backend/src/mergegate/acceptance/feedback.py` (depends on T026)
-- [ ] T039 [US3] Feedback → Planning wiring for the next attempt in `backend/src/mergegate/orchestrator/nodes.py` (depends on T027, T038)
-- [ ] T040 [US3] Budget enforcement (attempts, wall-clock, model calls) in `backend/src/mergegate/orchestrator/budgets.py` (depends on T013)
-- [ ] T041 [US3] `failure_signature` + no-progress detector (same signature + unchanged diff) in `backend/src/mergegate/orchestrator/no_progress.py` (depends on T038)
-- [ ] T042 [US3] Rollback: discard worktree, leave base repo green, emit undelivered report in `backend/src/mergegate/workspace/rollback.py` (depends on T014)
-- [ ] T043 [P] [US3] Attempt counter + retry reasons surfaced via SSE and console in `frontend/src/console/` (depends on T030)
+- [X] T038 [US3] Structured failure feedback builder (criterion, command, exit_code, signature, location, attempt) in `backend/src/mergegate/acceptance/feedback.py` (depends on T026)
+- [X] T039 [US3] Feedback → Planning wiring for the next attempt in `backend/src/mergegate/orchestrator/nodes.py` (depends on T027, T038)
+- [X] T040 [US3] Budget enforcement (attempts, wall-clock, model calls) in `backend/src/mergegate/orchestrator/budgets.py` (depends on T013)
+- [X] T041 [US3] `failure_signature` + no-progress detector (same signature + unchanged diff) in `backend/src/mergegate/orchestrator/no_progress.py` (depends on T038)
+- [X] T042 [US3] Rollback: discard worktree, leave base repo green, emit undelivered report in `backend/src/mergegate/workspace/rollback.py` (depends on T014)
+- [X] T043 [P] [US3] Attempt counter + retry reasons surfaced via SSE and console in `frontend/src/console/` (depends on T030)
 
 **Checkpoint**: Bounded-autonomy story demonstrable independently
 

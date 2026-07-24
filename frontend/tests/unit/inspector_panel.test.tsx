@@ -79,7 +79,9 @@ describe("InspectorPanel", () => {
   });
 
   it("lets the operator choose Gemini and sends it with the run request", async () => {
-    const createRun = vi.fn().mockResolvedValue(makeRun({ provider: "gemini" }));
+    const createRun = vi
+      .fn()
+      .mockResolvedValue(makeRun({ provider: "gemini" }));
     const client = { createRun } as unknown as ApiClient;
     useAppStore.getState().selectNode("input");
     useAppStore.getState().setObjective("Add idempotency keys");
@@ -164,10 +166,12 @@ describe("InspectorPanel", () => {
   it("refreshes the completed run and approves its final merge gate", async () => {
     const getRun = vi
       .fn()
-      .mockResolvedValue(makeRun({ status: "awaiting_gate", current_attempt: 1 }));
-    const decideGate = vi.fn().mockResolvedValue(
-      makeRun({ status: "SUCCESS", current_attempt: 1 }),
-    );
+      .mockResolvedValue(
+        makeRun({ status: "awaiting_gate", current_attempt: 1 }),
+      );
+    const decideGate = vi
+      .fn()
+      .mockResolvedValue(makeRun({ status: "SUCCESS", current_attempt: 1 }));
     const client = { getRun, decideGate } as unknown as ApiClient;
     useAppStore.setState({
       selectedNodeId: "input",
@@ -177,7 +181,9 @@ describe("InspectorPanel", () => {
     });
     render(<InspectorPanel client={client} />);
 
-    fireEvent.click(screen.getByRole("button", { name: /refresh run status/i }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /refresh run status/i }),
+    );
     await waitFor(() =>
       expect(useAppStore.getState().run?.status).toBe("awaiting_gate"),
     );

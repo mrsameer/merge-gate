@@ -31,6 +31,8 @@ export function RunConsole({
   const nodeStatuses = useAppStore((s) => s.nodeStatuses);
   const appendEvent = useAppStore((s) => s.appendEvent);
   const applyNodeStatus = useAppStore((s) => s.applyNodeStatus);
+  const retry = useAppStore((s) => s.retry);
+  const setRetry = useAppStore((s) => s.setRetry);
 
   useEffect(() => {
     if (!runId) return;
@@ -50,7 +52,23 @@ export function RunConsole({
         record("verdict")(data);
       },
       gate: record("gate"),
-      retry: record("retry"),
+      retry: (data) => {
+        const payload = data as {
+          attempt?: number;
+          max_attempts?: number;
+          reason?: string;
+          feedback?: Record<string, unknown>;
+        };
+        if (payload.attempt && payload.max_attempts && payload.reason) {
+          setRetry({
+            attempt: payload.attempt,
+            maxAttempts: payload.max_attempts,
+            reason: payload.reason,
+            feedback: payload.feedback,
+          });
+        }
+        record("retry")(data);
+      },
       harness_output: record("harness_output"),
       command_result: record("command_result"),
       policy_block: record("policy_block"),
@@ -59,7 +77,7 @@ export function RunConsole({
 
     const client = connect(runId, handlers);
     return () => client.close();
-  }, [runId, connect, appendEvent, applyNodeStatus]);
+  }, [runId, connect, appendEvent, applyNodeStatus, setRetry]);
 
   const statuses = Object.entries(nodeStatuses);
 
@@ -76,6 +94,20 @@ export function RunConsole({
 
       {!collapsed && (
         <div className="run-console__body">
+          {retry && (
+            <div className="run-console__retry" aria-live="polite">
+              <strong data-testid="attempt-progress">
+                Attempt {retry.attempt} / {retry.maxAttempts}
+              </strong>
+              <span data-testid="retry-reason">
+                Retrying because {retry.reason}:{" "}
+                {String(retry.feedback?.criterion ?? "acceptance failed")}
+                {retry.feedback?.command
+                  ? ` (${String(retry.feedback.command)})`
+                  : ""}
+              </span>
+            </div>
+          )}
           <ul className="run-console__statuses" data-testid="node-statuses">
             {statuses.length === 0 && <li>No node activity yet.</li>}
             {statuses.map(([node, status]) => (

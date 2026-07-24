@@ -67,6 +67,40 @@ describe("RunConsole", () => {
     expect(screen.getByTestId("event-log")).toHaveTextContent("terminal");
   });
 
+  it("surfaces the current attempt and actionable retry reason", async () => {
+    let captured: RunEventHandlers | undefined;
+    useAppStore.setState({ runId: "run-1" });
+    const connect = vi.fn((_runId: string, handlers: RunEventHandlers) => {
+      captured = handlers;
+      return { close: vi.fn() };
+    });
+
+    render(
+      <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
+    );
+
+    act(() =>
+      captured?.retry?.({
+        attempt: 2,
+        max_attempts: 3,
+        reason: "acceptance failed",
+        feedback: {
+          criterion: "task-tests",
+          command: "pytest tests/test_orders.py -q",
+          exit_code: 1,
+        },
+      }),
+    );
+
+    expect(await screen.findByTestId("attempt-progress")).toHaveTextContent(
+      "Attempt 2 / 3",
+    );
+    expect(screen.getByTestId("retry-reason")).toHaveTextContent("task-tests");
+    expect(screen.getByTestId("retry-reason")).toHaveTextContent(
+      "pytest tests/test_orders.py -q",
+    );
+  });
+
   it("closes the stream when the run console unmounts", () => {
     const close = vi.fn();
     const connect = vi.fn(() => ({ close }));

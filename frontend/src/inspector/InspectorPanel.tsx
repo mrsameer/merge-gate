@@ -201,7 +201,9 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
           aria-label="Model"
           value={model}
           placeholder={provider === "gemini" ? "gemini-2.5-pro" : "Default"}
-          disabled={runId !== null || provider === "scripted" || provider === "cursor"}
+          disabled={
+            runId !== null || provider === "scripted" || provider === "cursor"
+          }
           onChange={(e) => setModel(e.target.value)}
         />
       </label>
@@ -283,11 +285,13 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
           Refresh run status
         </button>
       )}
-      {approved && run?.status === "awaiting_gate" && run.current_attempt > 0 && (
-        <button type="button" onClick={handleApproveMerge} disabled={busy}>
-          Approve merge
-        </button>
-      )}
+      {approved &&
+        run?.status === "awaiting_gate" &&
+        run.current_attempt > 0 && (
+          <button type="button" onClick={handleApproveMerge} disabled={busy}>
+            Approve merge
+          </button>
+        )}
 
       {error && (
         <p

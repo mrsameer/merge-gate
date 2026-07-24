@@ -27,3 +27,4 @@ class Run(BaseModel):
     ended_at: datetime | None = None
     branch: str | None = None
     patch_ref: str | None = None
+    undelivered_report: dict | None = None
