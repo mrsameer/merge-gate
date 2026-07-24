@@ -5,12 +5,49 @@
 // client only needs the shapes it constructs requests from and passes
 // responses through.
 
+export interface WorkflowNodeConfigPayload {
+  role?: "success_criteria" | "planning" | "execution" | "validation";
+  instructions?: string;
+  provider?: string;
+  model?: string;
+  tools?: string[];
+  command?: string;
+  timeout_s?: number;
+  criteria_ref?: string;
+  retry_limit?: number;
+  completion_condition?: string;
+  success_path?: string;
+  failure_path?: string;
+}
+
+export interface WorkflowNodePayload {
+  id: string;
+  type:
+    | "Input"
+    | "Agent"
+    | "Command"
+    | "Validator"
+    | "Decision"
+    | "HumanGate"
+    | "Success"
+    | "Stop";
+  name: string;
+  config?: WorkflowNodeConfigPayload;
+}
+
+export interface WorkflowEdgePayload {
+  id?: string;
+  source: string;
+  target: string;
+  path?: "default" | "success" | "failure";
+}
+
 export interface Workflow {
   id: string;
   name: string;
   version?: string;
-  nodes: unknown[];
-  edges: unknown[];
+  nodes: WorkflowNodePayload[];
+  edges: WorkflowEdgePayload[];
   created_at?: string;
   updated_at?: string;
 }

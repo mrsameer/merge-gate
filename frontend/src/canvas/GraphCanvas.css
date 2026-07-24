@@ -13,6 +13,20 @@
   font-size: 0.8rem;
 }
 
+.role-node[data-status="running"] {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgb(37 99 235 / 20%);
+}
+
+.role-node[data-status="passed"] {
+  border-color: var(--edge-success, #16a34a);
+}
+
+.role-node[data-status="failed"],
+.role-node[data-status="blocked"] {
+  border-color: var(--edge-failure, #dc2626);
+}
+
 .role-node__header {
   display: flex;
   justify-content: space-between;

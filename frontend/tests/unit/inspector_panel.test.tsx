@@ -59,6 +59,33 @@ describe("InspectorPanel", () => {
     expect(useAppStore.getState().objective).toBe("Add idempotency keys");
   });
 
+  it("shows and edits only the selected Agent node's relevant settings", () => {
+    useAppStore.getState().selectNode("execution");
+    render(<InspectorPanel client={{} as ApiClient} />);
+
+    expect(screen.getByLabelText("Node name")).toHaveValue("Execution");
+    expect(screen.getByLabelText("Instructions")).toBeInTheDocument();
+    expect(screen.getByLabelText("Node provider")).toBeInTheDocument();
+    expect(screen.getByLabelText("Node model")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tools")).toBeInTheDocument();
+    expect(screen.getByLabelText("Retry limit")).toBeInTheDocument();
+    expect(screen.getByLabelText("Timeout")).toBeInTheDocument();
+    expect(screen.getByLabelText("Success path")).toBeInTheDocument();
+    expect(screen.getByLabelText("Failure path")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Command")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Instructions"), {
+      target: { value: "Implement the approved plan." },
+    });
+
+    expect(
+      useAppStore
+        .getState()
+        .workflow.nodes.find((node) => node.id === "execution")?.config
+        ?.instructions,
+    ).toBe("Implement the approved plan.");
+  });
+
   it("creates a run from the objective and stores the run id", async () => {
     const createRun = vi.fn().mockResolvedValue(makeRun());
     const client = { createRun } as unknown as ApiClient;

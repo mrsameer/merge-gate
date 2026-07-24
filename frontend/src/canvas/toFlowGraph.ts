@@ -37,9 +37,9 @@ export function toFlowNodes(
       attemptNumber: node.attemptNumber,
       latestResult: node.latestResult,
     },
-    draggable: false,
-    connectable: false,
-    selectable: false,
+    draggable: true,
+    connectable: true,
+    selectable: true,
   }));
 }
 
@@ -50,6 +50,7 @@ export function toFlowEdges(workflow: Workflow): Edge[] {
       id: edge.id,
       source: edge.source,
       target: edge.target,
+      sourceHandle: edge.path,
       type: "smoothstep",
       label: edge.path !== "default" ? edge.path : undefined,
       style: { stroke: color },

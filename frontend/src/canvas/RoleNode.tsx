@@ -18,6 +18,13 @@ export type RoleNode = Node<RoleNodeData, "role">;
 
 const NO_TARGET_HANDLE: NodeType[] = ["Input"];
 const NO_SOURCE_HANDLE: NodeType[] = ["Success", "Stop"];
+const BRANCHING_NODE: NodeType[] = [
+  "Agent",
+  "Command",
+  "Validator",
+  "Decision",
+  "HumanGate",
+];
 
 export function RoleNode({ id, data }: NodeProps<RoleNode>) {
   const { name, nodeType, status, summary, attemptNumber, latestResult } = data;
@@ -29,7 +36,7 @@ export function RoleNode({ id, data }: NodeProps<RoleNode>) {
       data-status={status}
     >
       {!NO_TARGET_HANDLE.includes(nodeType) && (
-        <Handle type="target" position={Position.Left} />
+        <Handle id="default" type="target" position={Position.Left} />
       )}
       <div className="role-node__header">
         <span className="role-node__name">{name}</span>
@@ -42,7 +49,32 @@ export function RoleNode({ id, data }: NodeProps<RoleNode>) {
       )}
       {latestResult && <div className="role-node__result">{latestResult}</div>}
       {!NO_SOURCE_HANDLE.includes(nodeType) && (
-        <Handle type="source" position={Position.Right} />
+        <>
+          <Handle
+            id="default"
+            type="source"
+            position={Position.Right}
+            title="Default path"
+          />
+          {BRANCHING_NODE.includes(nodeType) && (
+            <>
+              <Handle
+                id="success"
+                type="source"
+                position={Position.Right}
+                style={{ top: "30%", background: "#16a34a" }}
+                title="Success path"
+              />
+              <Handle
+                id="failure"
+                type="source"
+                position={Position.Right}
+                style={{ top: "70%", background: "#dc2626" }}
+                title="Failure path"
+              />
+            </>
+          )}
+        </>
       )}
     </div>
   );

@@ -7,12 +7,10 @@
 import { useState } from "react";
 import { createApiClient } from "../api";
 import type { ApiClient, Budget } from "../api";
-import { DEFAULT_WORKFLOW } from "../canvas/defaultWorkflow";
-import type { WorkflowNode } from "../canvas/types";
+import type { EdgePath, NodeConfig, WorkflowNode } from "../canvas/types";
 import { useAppStore } from "../state/store";
 import "./InspectorPanel.css";
 
-const DEFAULT_WORKFLOW_ID = DEFAULT_WORKFLOW.id;
 const DEFAULT_REPO_REF = "demo-repo";
 const DEFAULT_BUDGETS: Budget = {
   max_attempts: 3,
@@ -30,7 +28,9 @@ export function InspectorPanel({
   client = defaultClient,
 }: InspectorPanelProps) {
   const selectedNodeId = useAppStore((s) => s.selectedNodeId);
-  const node = DEFAULT_WORKFLOW.nodes.find((n) => n.id === selectedNodeId);
+  const node = useAppStore((s) =>
+    s.workflow.nodes.find((item) => item.id === selectedNodeId),
+  );
 
   return (
     <aside
@@ -39,13 +39,9 @@ export function InspectorPanel({
       aria-label="Node inspector"
     >
       {!node && <p>Select a node to inspect its settings.</p>}
-      {node && node.type !== "Input" && (
-        <>
-          <NodeDetails node={node} />
-          {node.type === "Validator" && <PolicyEditor />}
-        </>
-      )}
-      {node && node.type === "Input" && <InputNodeInspector client={client} />}
+      {node && <NodeSettingsEditor node={node} />}
+      {node?.type === "Validator" && <PolicyEditor />}
+      {node?.type === "Input" && <InputNodeInspector client={client} />}
     </aside>
   );
 }
@@ -98,7 +94,30 @@ function PolicyEditor() {
   );
 }
 
-function NodeDetails({ node }: { node: WorkflowNode }) {
+function NodeSettingsEditor({ node }: { node: WorkflowNode }) {
+  const nodes = useAppStore((state) => state.workflow.nodes);
+  const updateNode = useAppStore((state) => state.updateNode);
+  const connectNodes = useAppStore((state) => state.connectNodes);
+
+  const updateConfig = <K extends keyof NodeConfig>(
+    key: K,
+    value: NodeConfig[K],
+  ) => updateNode(node.id, { config: { [key]: value } });
+
+  const updatePath = (path: EdgePath, target: string) => {
+    updateConfig(path === "success" ? "success_path" : "failure_path", target);
+    if (target) connectNodes(node.id, target, path);
+  };
+
+  const hasTimeout = ["Agent", "Command", "Validator"].includes(node.type);
+  const hasPaths = [
+    "Agent",
+    "Command",
+    "Validator",
+    "Decision",
+    "HumanGate",
+  ].includes(node.type);
+
   return (
     <div className="inspector-section" data-testid="node-details">
       <h2>{node.name}</h2>
@@ -108,11 +127,191 @@ function NodeDetails({ node }: { node: WorkflowNode }) {
         <dt>Status</dt>
         <dd>{node.status}</dd>
       </dl>
+
+      <label className="inspector-field">
+        <span>Name</span>
+        <input
+          aria-label="Node name"
+          value={node.name}
+          onChange={(event) =>
+            updateNode(node.id, { name: event.target.value })
+          }
+        />
+      </label>
+
+      {node.type === "Agent" && (
+        <>
+          <label className="inspector-field">
+            <span>Instructions</span>
+            <textarea
+              aria-label="Instructions"
+              rows={4}
+              value={node.config?.instructions ?? ""}
+              onChange={(event) =>
+                updateConfig("instructions", event.target.value)
+              }
+            />
+          </label>
+          <label className="inspector-field">
+            <span>Provider</span>
+            <select
+              aria-label="Node provider"
+              value={node.config?.provider ?? ""}
+              onChange={(event) => updateConfig("provider", event.target.value)}
+            >
+              <option value="">Use run default</option>
+              <option value="gemini">Gemini</option>
+              <option value="anthropic">Claude Code</option>
+              <option value="cursor">Cursor</option>
+              <option value="scripted">Scripted</option>
+            </select>
+          </label>
+          <label className="inspector-field">
+            <span>Model</span>
+            <input
+              aria-label="Node model"
+              value={node.config?.model ?? ""}
+              onChange={(event) => updateConfig("model", event.target.value)}
+            />
+          </label>
+          <label className="inspector-field">
+            <span>Tools</span>
+            <input
+              aria-label="Tools"
+              value={(node.config?.tools ?? []).join(", ")}
+              placeholder="shell, filesystem"
+              onChange={(event) =>
+                updateConfig(
+                  "tools",
+                  event.target.value
+                    .split(",")
+                    .map((tool) => tool.trim())
+                    .filter(Boolean),
+                )
+              }
+            />
+          </label>
+          <label className="inspector-field">
+            <span>Retry limit</span>
+            <input
+              aria-label="Retry limit"
+              type="number"
+              min={0}
+              value={node.config?.retry_limit ?? 0}
+              onChange={(event) =>
+                updateConfig("retry_limit", Number(event.target.value))
+              }
+            />
+          </label>
+        </>
+      )}
+
+      {node.type === "Command" && (
+        <label className="inspector-field">
+          <span>Command</span>
+          <textarea
+            aria-label="Command"
+            rows={3}
+            value={node.config?.command ?? ""}
+            onChange={(event) => updateConfig("command", event.target.value)}
+          />
+        </label>
+      )}
+
+      {node.type === "Validator" && (
+        <label className="inspector-field">
+          <span>Validation criteria</span>
+          <textarea
+            aria-label="Validation criteria"
+            rows={3}
+            value={node.config?.criteria_ref ?? ""}
+            onChange={(event) =>
+              updateConfig("criteria_ref", event.target.value)
+            }
+          />
+        </label>
+      )}
+
+      {["Decision", "HumanGate"].includes(node.type) && (
+        <label className="inspector-field">
+          <span>Completion condition</span>
+          <input
+            aria-label="Completion condition"
+            value={node.config?.completion_condition ?? ""}
+            onChange={(event) =>
+              updateConfig("completion_condition", event.target.value)
+            }
+          />
+        </label>
+      )}
+
+      {hasTimeout && (
+        <label className="inspector-field">
+          <span>Timeout (seconds)</span>
+          <input
+            aria-label="Timeout"
+            type="number"
+            min={1}
+            value={node.config?.timeout_s ?? 300}
+            onChange={(event) =>
+              updateConfig("timeout_s", Number(event.target.value))
+            }
+          />
+        </label>
+      )}
+
+      {hasPaths && (
+        <>
+          <PathSelect
+            label="Success path"
+            value={node.config?.success_path ?? ""}
+            nodes={nodes.filter((item) => item.id !== node.id)}
+            onChange={(target) => updatePath("success", target)}
+          />
+          <PathSelect
+            label="Failure path"
+            value={node.config?.failure_path ?? ""}
+            nodes={nodes.filter((item) => item.id !== node.id)}
+            onChange={(target) => updatePath("failure", target)}
+          />
+        </>
+      )}
     </div>
   );
 }
 
+function PathSelect({
+  label,
+  value,
+  nodes,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  nodes: WorkflowNode[];
+  onChange: (target: string) => void;
+}) {
+  return (
+    <label className="inspector-field">
+      <span>{label}</span>
+      <select
+        aria-label={label}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        <option value="">Not configured</option>
+        {nodes.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function InputNodeInspector({ client }: { client: ApiClient }) {
+  const workflowId = useAppStore((s) => s.workflow.id);
   const objective = useAppStore((s) => s.objective);
   const setObjective = useAppStore((s) => s.setObjective);
   const runId = useAppStore((s) => s.runId);
@@ -146,7 +345,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
   const handleCreateRun = () =>
     guard(async () => {
       const created = await client.createRun({
-        workflow_id: DEFAULT_WORKFLOW_ID,
+        workflow_id: workflowId,
         objective,
         repo_ref: repoRef,
         provider,
@@ -258,7 +457,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
         <input
           aria-label="Model"
           value={model}
-          placeholder={provider === "gemini" ? "gemini-2.5-pro" : "Default"}
+          placeholder={provider === "gemini" ? "gemini-2.5-flash" : "Default"}
           disabled={
             runId !== null || provider === "scripted" || provider === "cursor"
           }
