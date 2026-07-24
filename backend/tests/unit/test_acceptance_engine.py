@@ -153,8 +153,19 @@ def test_criteria_without_a_pipeline_step_are_excluded(tmp_path: Path) -> None:
     assert [r.criterion_id for r in results] == ["build"]
 
 
-def test_empty_contract_produces_no_check_results(tmp_path: Path) -> None:
-    contract = Contract(id="c1", run_id="r1", criteria=[])
+def test_contract_with_only_out_of_scope_criteria_produces_no_check_results(
+    tmp_path: Path,
+) -> None:
+    """A contract must hold at least one criterion (Contract enforces
+    `min_length=1`), but when every criterion is outside the ordered pipeline
+    (`step=None`) the engine evaluates nothing and returns no results."""
+    out_of_scope = Criterion(
+        id="protected-files",
+        type=CriterionType.GIT_POLICY,
+        priority=1,
+        step=None,
+    )
+    contract = Contract(id="c1", run_id="r1", criteria=[out_of_scope])
     results = run_acceptance_pipeline(contract, str(tmp_path))
     assert results == []
 
