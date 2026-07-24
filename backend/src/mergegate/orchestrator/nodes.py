@@ -48,11 +48,13 @@ from mergegate.models import (
     Contract,
     PassFail,
     Policy,
+    PolicyResult,
     Run,
     RunStatus,
     StructuredFeedback,
     Verdict,
 )
+from mergegate.models.enums import LedgerEntryType
 from mergegate.orchestrator import cost as cost_accounting
 from mergegate.orchestrator import runner
 from mergegate.orchestrator.budgets import BudgetGuard, budget_reason
@@ -103,6 +105,23 @@ class RunContext:
 
 
 def _emit(ctx: RunContext, event_type: str, payload: dict) -> None:
+    if ctx.ledger is not None:
+        if event_type == "retry":
+            feedback = payload.get("feedback", {})
+            ctx.ledger.append(
+                LedgerEntryType.RETRY,
+                {
+                    "attempt": payload["attempt"],
+                    "failure_signature": feedback.get(
+                        "failure_signature", "unknown failure"
+                    ),
+                    "feedback": feedback,
+                },
+            )
+        elif event_type == "gate":
+            ctx.ledger.append(LedgerEntryType.GATE, payload)
+        elif event_type == "terminal":
+            ctx.ledger.append(LedgerEntryType.TERMINAL, payload)
     if ctx.on_event is not None:
         ctx.on_event(event_type, payload)
 
@@ -120,6 +139,48 @@ def _policy_changed_files(changed_files: list[str], subdir: str) -> list[str]:
     if not prefix:
         return changed_files
     return [path[len(prefix) :] for path in changed_files if path.startswith(prefix)]
+
+
+def _policy_ledger_payloads(
+    policy: Policy, result: PolicyResult, attempt: int
+) -> list[dict]:
+    """Project a policy evaluation into deterministic, schema-valid receipts."""
+    configured_rules = [("protected_path", rule) for rule in policy.protected_paths] + [
+        ("forbidden_pattern", rule) for rule in policy.forbidden_diff_patterns
+    ]
+    if not configured_rules:
+        return [{"attempt": attempt, "rule": "policy", "passed": True}]
+
+    payloads: list[dict] = []
+    for kind, rule in configured_rules:
+        violations = [
+            violation
+            for violation in result.violations
+            if violation.kind == kind and violation.rule == rule
+        ]
+        if not violations:
+            payloads.append(
+                {
+                    "attempt": attempt,
+                    "kind": kind,
+                    "rule": rule,
+                    "passed": True,
+                }
+            )
+            continue
+        for violation in violations:
+            payloads.append(
+                {
+                    "attempt": attempt,
+                    "kind": kind,
+                    "rule": violation.rule,
+                    "passed": False,
+                    "offending": violation.offender,
+                    "path": violation.path,
+                    "message": violation.message,
+                }
+            )
+    return payloads
 
 
 def _acceptance_input(contract: Contract, commit_sha: str) -> dict:
@@ -164,9 +225,6 @@ def run_execution_node(
     # serializes a whole accounting, and persist the snapshot when a ledger
     # is wired (T074/FR-022).
     ctx.run.cost = cost_accounting.add_result(ctx.run.cost, result, elapsed)
-    if ctx.ledger is not None:
-        cost_accounting.record_cost(ctx.ledger, ctx.run.cost)
-
     attempt = Attempt(
         id=str(uuid4()),
         run_id=ctx.run.id,
@@ -177,6 +235,26 @@ def run_execution_node(
         changed_files=result.changed_files,
         harness_log=result.log,
     )
+    if ctx.ledger is not None:
+        ctx.ledger.append(
+            LedgerEntryType.HARNESS,
+            {
+                "node": "execution",
+                "attempt": index,
+                "provider": ctx.provider,
+                "model": ctx.run.model,
+                "agent_input": {
+                    "objective": ctx.run.objective,
+                    "feedback": (
+                        feedback.model_dump(mode="json") if feedback else None
+                    ),
+                },
+                "agent_output": result.log,
+                "diff": result.diff,
+                "changed_files": result.changed_files,
+                **cost_accounting.cost_payload(ctx.run.cost),
+            },
+        )
     return attempt, worktree
 
 
@@ -212,6 +290,38 @@ def run_validation_node(
         acceptance_input=_acceptance_input(ctx.contract, commit_sha),
     )
     attempt.verdict = verdict
+    if ctx.ledger is not None:
+        command_by_criterion = {
+            criterion.id: criterion.command or criterion.id
+            for criterion in ctx.contract.criteria
+        }
+        for check in checks:
+            ctx.ledger.append(
+                LedgerEntryType.COMMAND,
+                {
+                    "node": "validation",
+                    "criterion_id": check.criterion_id,
+                    "step": check.step.value,
+                    "command": command_by_criterion[check.criterion_id],
+                    "exit_code": check.exit_code,
+                    "stdout": check.stdout,
+                    "stderr": check.stderr,
+                    "duration_ms": check.duration_ms,
+                    "attempt": attempt.index,
+                    "changed_files": attempt.changed_files,
+                },
+            )
+        ctx.ledger.append(
+            LedgerEntryType.VERDICT,
+            {
+                "node": "validation",
+                "attempt": attempt.index,
+                "passed": verdict.passed,
+                "acceptance_hash": verdict.acceptance_hash,
+                "acceptance_input": verdict.acceptance_input,
+                "red_green_evidence": attempt.red_green_evidence,
+            },
+        )
     return verdict
 
 
@@ -341,6 +451,11 @@ def drive_run(ctx: RunContext) -> None:
                 diff=attempt.diff,
             )
             attempt.policy_results = [policy_result]
+            if ctx.ledger is not None:
+                for payload in _policy_ledger_payloads(
+                    ctx.policy, policy_result, index
+                ):
+                    ctx.ledger.append(LedgerEntryType.POLICY, payload)
             if not policy_result.passed:
                 violation = policy_result.violations[0]
                 policy_event = runner.block_for_policy(run, violation)

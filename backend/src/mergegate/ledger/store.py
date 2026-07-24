@@ -55,13 +55,15 @@ def init_schema(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-def connect(db_path: str | Path) -> sqlite3.Connection:
+def connect(
+    db_path: str | Path, *, check_same_thread: bool = True
+) -> sqlite3.Connection:
     """Open a SQLite connection at `db_path`, ensuring the schema exists.
 
     `db_path` may be `:memory:` for an ephemeral database. Foreign keys are
     enabled so attempts/ledger rows are constrained to an existing run.
     """
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=check_same_thread)
     conn.execute("PRAGMA foreign_keys = ON")
     init_schema(conn)
     return conn

@@ -57,6 +57,12 @@ def test_canonical_json_is_order_independent() -> None:
     assert canonical_json({"b": 1, "a": 2}) == canonical_json({"a": 2, "b": 1})
 
 
+def test_canonical_json_survives_javascript_integral_float_serialization() -> None:
+    assert canonical_json({"usd": 0.0, "nested": [1.0]}) == canonical_json(
+        {"usd": 0, "nested": [1]}
+    )
+
+
 def test_compute_hash_changes_when_payload_changes() -> None:
     h1 = compute_hash("prev", {"a": 1})
     h2 = compute_hash("prev", {"a": 2})

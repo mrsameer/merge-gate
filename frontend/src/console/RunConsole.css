@@ -87,3 +87,59 @@
 .run-console__event-data {
   color: var(--muted-text, #6b7280);
 }
+
+.run-console__ledger,
+.run-console__inspector {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.run-console__ledger h3,
+.run-console__inspector h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+}
+
+.run-console__ledger ol {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  margin: 0;
+  padding: 0 0 0.5rem;
+  list-style: none;
+}
+
+.run-console__ledger button {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.2rem 0.4rem;
+  min-width: 180px;
+  padding: 0.45rem;
+  border: 1px solid #334155;
+  border-radius: 0.35rem;
+  background: #111827;
+  color: #e5e7eb;
+  text-align: left;
+}
+
+.run-console__ledger time {
+  grid-column: 1 / -1;
+  color: #94a3b8;
+  font-size: 0.65rem;
+}
+
+.run-console__inspector {
+  padding: 0.65rem;
+  border: 1px solid #334155;
+  border-radius: 0.35rem;
+  background: #0f172a;
+}
+
+.run-console__inspector pre {
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #cbd5e1;
+  font-size: 0.7rem;
+}

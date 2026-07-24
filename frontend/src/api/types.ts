@@ -104,7 +104,47 @@ export interface Run {
 // T009 ledger). The client passes them through as-received.
 export type Attempt = Record<string, unknown>;
 export type Verdict = Record<string, unknown>;
-export type LedgerEntry = Record<string, unknown>;
+export interface LedgerEntry {
+  seq: number;
+  run_id: string;
+  ts: string;
+  type: string;
+  payload: Record<string, unknown>;
+  prev_hash: string | null;
+  hash: string;
+}
+
+export interface EvidenceBundle {
+  run_id: string;
+  terminal_state: RunStatus;
+  contract: {
+    mode: ContractMode;
+    criteria: Record<string, unknown>[];
+    frozen_hash: string;
+  };
+  plan: string;
+  diff: string;
+  commands: Record<string, unknown>[];
+  red_green_evidence: {
+    baseline: string;
+    result: string;
+    verdict: string;
+    test_hash: string;
+    baseline_hash: string;
+    result_hash: string;
+  };
+  policy_results: Record<string, unknown>[];
+  retries: Record<string, unknown>[];
+  acceptance_hash: string;
+  acceptance_input?: Record<string, unknown>;
+  cost: CostAccounting;
+  time: {
+    started_at: string;
+    ended_at: string;
+    wall_clock_s: number;
+  };
+  ledger: LedgerEntry[];
+}
 
 export interface ApiErrorBody {
   error: {

@@ -22,6 +22,7 @@ agent — produces the verdict.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import threading
@@ -44,6 +45,7 @@ from mergegate.criteria.contract import (
     edit_draft,
 )
 from mergegate.criteria.generate import generate_hybrid_contract, map_repository
+from mergegate.ledger.bundle import assemble_evidence_bundle
 from mergegate.models import (
     Budget,
     CheckStep,
@@ -54,7 +56,8 @@ from mergegate.models import (
     Run,
     RunStatus,
 )
-from mergegate.orchestrator import gates
+from mergegate.models.enums import LedgerEntryType
+from mergegate.orchestrator import gates, runner
 from mergegate.orchestrator.default_workflow import build_default_workflow
 from mergegate.orchestrator.demo import demo_idempotency_changes, is_demo_repo
 from mergegate.orchestrator.nodes import RunContext, drive_run
@@ -274,15 +277,45 @@ def get_attempts(run_id: str) -> JSONResponse:
     )
 
 
+@router.get("/runs/{run_id}/ledger")
+def get_ledger(run_id: str) -> JSONResponse:
+    """Return the complete durable hash-chained timeline in sequence order."""
+    record = _require_record(run_id)
+    if record.ledger is None:
+        raise HTTPException(status_code=409, detail="run ledger is unavailable")
+    return JSONResponse(
+        content=[
+            entry.model_dump(mode="json") for entry in record.ledger.read_entries()
+        ]
+    )
+
+
 @router.get("/runs/{run_id}/evidence")
 def get_evidence(run_id: str) -> JSONResponse:
-    """Return the latest red→green proof and deterministic verdict."""
+    """Download a terminal bundle, preserving the live US2 proof before then."""
     record = _require_record(run_id)
     attempt = next(
         (item for item in reversed(record.run.attempts) if item.verdict), None
     )
     if attempt is None or attempt.red_green_evidence is None or attempt.verdict is None:
         raise HTTPException(status_code=409, detail="run has no completed evidence")
+    if runner.is_terminal(record.run.status):
+        if record.contract is None or record.ledger is None:
+            raise HTTPException(status_code=409, detail="run evidence is incomplete")
+        try:
+            bundle = assemble_evidence_bundle(
+                run=record.run,
+                contract=record.contract,
+                entries=record.ledger.read_entries(),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return JSONResponse(
+            content=bundle,
+            headers={
+                "Content-Disposition": 'attachment; filename="evidence-bundle.json"'
+            },
+        )
     return JSONResponse(
         content={
             "red_green_evidence": attempt.red_green_evidence,
@@ -306,6 +339,16 @@ def replay_run(run_id: str) -> JSONResponse:
         replayed = replay_verdict(attempt.verdict)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if record.ledger is not None:
+        record.ledger.append(
+            LedgerEntryType.REPLAY,
+            {
+                "attempt_id": attempt.id,
+                "acceptance_hash": replayed.acceptance_hash,
+                "passed": replayed.passed,
+                "model_calls": 0,
+            },
+        )
     return JSONResponse(content=replayed.model_dump(mode="json"))
 
 
@@ -356,6 +399,11 @@ def approve_criteria(run_id: str) -> JSONResponse:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     record.contract = frozen
+    if record.ledger is not None:
+        record.ledger.append(
+            LedgerEntryType.CONTRACT,
+            frozen.model_dump(mode="json"),
+        )
     return JSONResponse(content=frozen.model_dump(mode="json"))
 
 
@@ -408,9 +456,29 @@ def start_run(run_id: str) -> JSONResponse:
         workspace_subdir=subdir,
         adapter_kwargs=adapter_kwargs,
         on_event=emit,
+        ledger=record.ledger,
     )
 
     runner.transition(run, RunStatus.RUNNING)
+    if record.ledger is not None:
+        record.ledger.append(
+            LedgerEntryType.PLAN,
+            {
+                "plan": json.dumps(
+                    {
+                        "nodes": [
+                            node.model_dump(mode="json")
+                            for node in record.workflow.nodes
+                        ],
+                        "edges": [
+                            edge.model_dump(mode="json")
+                            for edge in record.workflow.edges
+                        ],
+                    },
+                    sort_keys=True,
+                )
+            },
+        )
     thread = threading.Thread(target=drive_run, args=(context,), daemon=True)
     record.thread = thread
     thread.start()
@@ -426,6 +494,15 @@ def approve_gate(run_id: str) -> JSONResponse:
         gates.approve_merge(record.run)
     except gates.GateError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if record.ledger is not None:
+        record.ledger.append(
+            LedgerEntryType.GATE,
+            {"gate": "merge", "decision": "approve"},
+        )
+        record.ledger.append(
+            LedgerEntryType.TERMINAL,
+            {"status": record.run.status.value, "reason": "merge approved"},
+        )
     return _run_json(record.run)
 
 
@@ -437,4 +514,17 @@ def reject_gate(run_id: str, request: RejectRequest) -> JSONResponse:
         gates.reject_merge(record.run, reason=request.reason)
     except gates.GateError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if record.ledger is not None:
+        record.ledger.append(
+            LedgerEntryType.GATE,
+            {
+                "gate": "merge",
+                "decision": "reject",
+                "reason": request.reason,
+            },
+        )
+        record.ledger.append(
+            LedgerEntryType.TERMINAL,
+            {"status": record.run.status.value, "reason": request.reason},
+        )
     return _run_json(record.run)

@@ -9,6 +9,7 @@ import type {
   Contract,
   ContractMode,
   Criterion,
+  EvidenceBundle,
   LedgerEntry,
   Policy,
   Run,
@@ -141,7 +142,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
     getAttempt: (runId: string, index: number) =>
       call<Attempt>(`/runs/${runId}/attempts/${index}`),
     getLedger: (runId: string) => call<LedgerEntry[]>(`/runs/${runId}/ledger`),
-    getEvidence: (runId: string) => call<unknown>(`/runs/${runId}/evidence`),
+    getEvidence: (runId: string) =>
+      call<EvidenceBundle | Record<string, unknown>>(`/runs/${runId}/evidence`),
     replayRun: (runId: string) =>
       call<Verdict>(`/runs/${runId}/replay`, { method: "POST" }),
   };

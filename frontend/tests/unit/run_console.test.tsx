@@ -6,8 +6,9 @@
 // EventSource, mirroring tests/unit/sse_client.test.ts.
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import { RunConsole } from "../../src/console/RunConsole";
+import type { ApiClient } from "../../src/api";
 import type { RunEventHandlers } from "../../src/state/sseClient";
 import { useAppStore } from "../../src/state/store";
 
@@ -198,5 +199,78 @@ describe("RunConsole", () => {
       <RunConsole collapsed={true} onToggle={() => {}} connect={vi.fn()} />,
     );
     expect(screen.queryByTestId("event-log")).not.toBeInTheDocument();
+  });
+
+  it("loads the durable ordered ledger and inspects a clicked event", async () => {
+    const getLedger = vi.fn().mockResolvedValue([
+      {
+        seq: 1,
+        ts: "2026-07-24T10:00:00Z",
+        type: "command",
+        payload: {
+          node: "validation",
+          command: "pytest -q",
+          exit_code: 1,
+          stderr: "one failed",
+          changed_files: ["src/orders.py"],
+          retry_reason: "acceptance failed",
+        },
+        prev_hash: null,
+        hash: "hash-1",
+      },
+      {
+        seq: 2,
+        ts: "2026-07-24T10:00:01Z",
+        type: "retry",
+        payload: { attempt: 2, failure_signature: "sig-1" },
+        prev_hash: "hash-1",
+        hash: "hash-2",
+      },
+    ]);
+    useAppStore.setState({ runId: "run-1" });
+
+    render(
+      <RunConsole
+        collapsed={false}
+        onToggle={() => {}}
+        connect={vi.fn(() => ({ close: vi.fn() }))}
+        client={{ getLedger } as unknown as ApiClient}
+      />,
+    );
+
+    expect(await screen.findByTestId("ledger-event-1")).toHaveTextContent(
+      "command",
+    );
+    expect(screen.getByTestId("ledger-event-2")).toHaveTextContent("retry");
+    fireEvent.click(screen.getByTestId("ledger-event-1"));
+
+    const inspector = screen.getByTestId("ledger-inspector");
+    expect(inspector).toHaveTextContent("pytest -q");
+    expect(inspector).toHaveTextContent("one failed");
+    expect(inspector).toHaveTextContent("src/orders.py");
+    expect(inspector).toHaveTextContent("acceptance failed");
+    expect(getLedger).toHaveBeenCalledWith("run-1");
+  });
+
+  it("shows an explicit ledger load failure instead of an empty success", async () => {
+    useAppStore.setState({ runId: "run-1" });
+    render(
+      <RunConsole
+        collapsed={false}
+        onToggle={() => {}}
+        connect={vi.fn(() => ({ close: vi.fn() }))}
+        client={
+          {
+            getLedger: vi
+              .fn()
+              .mockRejectedValue(new Error("ledger unavailable")),
+          } as unknown as ApiClient
+        }
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Ledger unavailable",
+    );
   });
 });
