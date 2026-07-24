@@ -33,6 +33,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from mergegate.acceptance.commands import run_command
+from mergegate.acceptance.replay import replay_verdict
 from mergegate.api.events import event_bus
 from mergegate.api.store import RunRecord, store
 from mergegate.config.settings import load_settings
@@ -258,6 +259,41 @@ def get_attempts(run_id: str) -> JSONResponse:
     return JSONResponse(
         content=[attempt.model_dump(mode="json") for attempt in record.run.attempts]
     )
+
+
+@router.get("/runs/{run_id}/evidence")
+def get_evidence(run_id: str) -> JSONResponse:
+    """Return the latest red→green proof and deterministic verdict."""
+    record = _require_record(run_id)
+    attempt = next(
+        (item for item in reversed(record.run.attempts) if item.verdict), None
+    )
+    if attempt is None or attempt.red_green_evidence is None or attempt.verdict is None:
+        raise HTTPException(status_code=409, detail="run has no completed evidence")
+    return JSONResponse(
+        content={
+            "red_green_evidence": attempt.red_green_evidence,
+            "verdict": attempt.verdict.model_dump(mode="json"),
+        }
+    )
+
+
+@router.post("/runs/{run_id}/replay")
+def replay_run(run_id: str) -> JSONResponse:
+    """Replay the recorded verdict without starting a provider or model call."""
+    record = _require_record(run_id)
+    attempt = next(
+        (item for item in reversed(record.run.attempts) if item.verdict), None
+    )
+    if attempt is None or attempt.verdict is None:
+        raise HTTPException(
+            status_code=409, detail="run has no completed verdict to replay"
+        )
+    try:
+        replayed = replay_verdict(attempt.verdict)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return JSONResponse(content=replayed.model_dump(mode="json"))
 
 
 @router.post("/runs/{run_id}/criteria:generate")

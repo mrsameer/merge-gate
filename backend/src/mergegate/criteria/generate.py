@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mergegate.models import Contract, ContractMode, Criterion, CriterionType
+from mergegate.models import Contract, ContractMode, Criterion, CriterionType, PassFail
 
 _IGNORED_DIRECTORIES = {
     ".git",
@@ -133,6 +133,8 @@ def generate_hybrid_contract(
                     source_paths=list(test_paths),
                     command="pytest",
                     expected_exit_code=0,
+                    baseline_expected=PassFail.FAIL,
+                    result_expected=PassFail.PASS,
                 ),
             )
         )

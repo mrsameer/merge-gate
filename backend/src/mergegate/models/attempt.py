@@ -30,5 +30,6 @@ class Attempt(BaseModel):
     changed_files: list[str] = Field(default_factory=list)
     harness_log: str
     verdict: Verdict | None = None
+    red_green_evidence: dict | None = None
     failure_signature: str | None = None
     feedback: StructuredFeedback | None = None

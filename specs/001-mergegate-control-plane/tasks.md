@@ -96,15 +96,15 @@ independently testable increment. Paths follow the web-app layout in plan.md
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T031 [P] [US2] Integration test red-before/green-after + replay-with-zero-model-calls in `backend/tests/integration/test_replay.py`
+- [X] T031 [P] [US2] Integration test red-before/green-after + replay-with-zero-model-calls in `backend/tests/integration/test_replay.py`
 
 ### Implementation for User Story 2
 
-- [ ] T032 [US2] Baseline red-check: run task tests on baseline worktree, assert ≥1 relevant test fails in `backend/src/mergegate/acceptance/baseline.py` (depends on T014, T025)
-- [ ] T033 [US2] Red→green evidence record + test/baseline/result hashes in `backend/src/mergegate/acceptance/evidence.py` (depends on T032)
-- [ ] T034 [US2] Replay entrypoint recomputing the verdict from `acceptance_input` with the provider adapter disabled in `backend/src/mergegate/acceptance/replay.py` (depends on T026)
-- [ ] T035 [US2] `/runs/{id}/replay` endpoint enforcing zero model calls in `backend/src/mergegate/api/runs.py` (depends on T034)
-- [ ] T036 [P] [US2] Evidence screen UI (baseline/result/verdict, hashes, Replay button) in `frontend/src/evidence/` (depends on T030)
+- [X] T032 [US2] Baseline red-check: run task tests on baseline worktree, assert ≥1 relevant test fails in `backend/src/mergegate/acceptance/baseline.py` (depends on T014, T025)
+- [X] T033 [US2] Red→green evidence record + test/baseline/result hashes in `backend/src/mergegate/acceptance/evidence.py` (depends on T032)
+- [X] T034 [US2] Replay entrypoint recomputing the verdict from `acceptance_input` with the provider adapter disabled in `backend/src/mergegate/acceptance/replay.py` (depends on T026)
+- [X] T035 [US2] `/runs/{id}/replay` endpoint enforcing zero model calls in `backend/src/mergegate/api/runs.py` (depends on T034)
+- [X] T036 [P] [US2] Evidence screen UI (baseline/result/verdict, hashes, Replay button) in `frontend/src/evidence/` (depends on T030)
 
 **Checkpoint**: Validator-integrity story demonstrable independently
 
