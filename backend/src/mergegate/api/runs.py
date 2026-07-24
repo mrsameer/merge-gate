@@ -37,6 +37,7 @@ from mergegate.acceptance.commands import run_command
 from mergegate.acceptance.replay import replay_verdict
 from mergegate.api.events import event_bus
 from mergegate.api.store import RunRecord, store
+from mergegate.config.providers import ProviderSelection, resolve_agent_provider
 from mergegate.config.settings import load_settings
 from mergegate.criteria.consistency import detect_inconsistency
 from mergegate.criteria.contract import (
@@ -47,11 +48,13 @@ from mergegate.criteria.contract import (
 from mergegate.criteria.generate import generate_hybrid_contract, map_repository
 from mergegate.ledger.bundle import assemble_evidence_bundle
 from mergegate.models import (
+    AgentRole,
     Budget,
     CheckStep,
     Contract,
     CostAccounting,
     Criterion,
+    NodeType,
     Policy,
     Run,
     RunStatus,
@@ -207,22 +210,45 @@ def _resolve_repo_ref(repo_ref: str) -> str:
     return repo_ref
 
 
-def _select_provider(run: Run) -> str:
-    """Pick the harness provider for this run.
+def _select_provider(record: RunRecord) -> ProviderSelection:
+    """Resolve the execution Agent's provider/model for this run.
 
-    An explicit ``MERGEGATE_PROVIDER`` env var always wins; otherwise the demo
-    idempotency scenario defaults to the deterministic ``scripted`` provider so
-    the happy path runs offline with no API key, and everything else falls back
-    to the configured default provider.
+    Explicit run config wins over the execution node and process settings.
+    The bundled demo keeps its deterministic scripted fallback only when none
+    of those three configuration layers selected a provider.
     """
-    if run.provider:
-        return run.provider
-    env_provider = os.environ.get("MERGEGATE_PROVIDER")
-    if env_provider:
-        return env_provider
-    if is_demo_repo(run.repo_ref, run.objective):
-        return "scripted"
-    return load_settings().provider
+    run = record.run
+    settings = load_settings()
+    execution_node = next(
+        (
+            node
+            for node in record.workflow.nodes
+            if node.type == NodeType.AGENT
+            and node.config is not None
+            and node.config.role == AgentRole.EXECUTION
+        ),
+        None,
+    )
+    execution_provider = (
+        execution_node.config.provider
+        if execution_node is not None and execution_node.config is not None
+        else None
+    )
+    if (
+        run.provider is None
+        and execution_provider is None
+        and "MERGEGATE_PROVIDER" not in os.environ
+        and is_demo_repo(run.repo_ref, run.objective)
+    ):
+        settings = settings.model_copy(update={"provider": "scripted"})
+
+    return resolve_agent_provider(
+        record.workflow,
+        AgentRole.EXECUTION,
+        settings=settings,
+        provider=run.provider,
+        model=run.model,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -437,15 +463,16 @@ def start_run(run_id: str) -> JSONResponse:
         )
         return _run_json(run)
 
-    provider = _select_provider(run)
+    selection = _select_provider(record)
+    provider = selection.provider
     subdir = _repo_subdir(run.repo_ref)
 
     adapter_kwargs: dict = {}
     if provider == "scripted":
         prefix = subdir if subdir != "." else ""
         adapter_kwargs = {"changes": demo_idempotency_changes(prefix=prefix)}
-    elif provider in {"anthropic", "gemini"} and run.model:
-        adapter_kwargs = {"model": run.model}
+    elif provider in {"anthropic", "claude-agent-sdk", "gemini", "aider", "codex"}:
+        adapter_kwargs = {"model": selection.model}
 
     context = RunContext(
         run=run,

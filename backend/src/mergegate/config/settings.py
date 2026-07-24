@@ -81,11 +81,7 @@ def resolve_budget(
 def resolve_provider(
     settings: Settings, node_config: NodeConfig | None
 ) -> tuple[str, str]:
-    """Layer a node's optional provider/model override over the env defaults."""
-    if node_config is None:
-        return settings.provider, settings.model
+    """Backward-compatible entrypoint for provider selection."""
+    from mergegate.config.providers import resolve_provider as _resolve_provider
 
-    return (
-        node_config.provider or settings.provider,
-        node_config.model or settings.model,
-    )
+    return _resolve_provider(settings, node_config)
