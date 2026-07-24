@@ -4,7 +4,9 @@
 // node statuses) lives in ../state/store; the transport is ../state/sseClient,
 // injectable via `connect` so tests can drive it without a real EventSource.
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createApiClient } from "../api";
+import type { ApiClient, LedgerEntry } from "../api";
 import { connectRunEvents } from "../state/sseClient";
 import type { RunEventHandlers, RunEventsClient } from "../state/sseClient";
 import { useAppStore } from "../state/store";
@@ -15,17 +17,20 @@ type ConnectFn = (runId: string, handlers: RunEventHandlers) => RunEventsClient;
 
 const defaultConnect: ConnectFn = (runId, handlers) =>
   connectRunEvents(runId, handlers);
+const defaultClient = createApiClient();
 
 export interface RunConsoleProps {
   collapsed: boolean;
   onToggle: () => void;
   connect?: ConnectFn;
+  client?: ApiClient;
 }
 
 export function RunConsole({
   collapsed,
   onToggle,
   connect = defaultConnect,
+  client = defaultClient,
 }: RunConsoleProps) {
   const runId = useAppStore((s) => s.runId);
   const events = useAppStore((s) => s.events);
@@ -37,6 +42,34 @@ export function RunConsole({
   const setRetry = useAppStore((s) => s.setRetry);
   const clarification = useAppStore((s) => s.clarification);
   const setClarification = useAppStore((s) => s.setClarification);
+  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+  const [selectedEntry, setSelectedEntry] = useState<LedgerEntry | null>(null);
+
+  useEffect(() => {
+    if (!runId) return;
+    let active = true;
+    void client
+      .getLedger(runId)
+      .then((entries) => {
+        if (!active) return;
+        setLedger(entries);
+        setLedgerError(null);
+      })
+      .catch(() => {
+        if (!active) return;
+        setLedger([]);
+        setLedgerError(
+          "Ledger unavailable. The durable timeline could not load.",
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, runId, events.length]);
+
+  const visibleLedger = runId ? ledger : [];
+  const visibleSelectedEntry = runId ? selectedEntry : null;
 
   useEffect(() => {
     if (!runId) return;
@@ -184,6 +217,50 @@ export function RunConsole({
               </li>
             ))}
           </ol>
+
+          <div className="run-console__ledger">
+            <h3>Durable ledger</h3>
+            {ledgerError && <p role="alert">{ledgerError}</p>}
+            <ol data-testid="ledger-timeline">
+              {!ledgerError && visibleLedger.length === 0 && (
+                <li>No durable receipts yet.</li>
+              )}
+              {visibleLedger.map((entry) => (
+                <li key={entry.seq}>
+                  <button
+                    type="button"
+                    data-testid={`ledger-event-${entry.seq}`}
+                    onClick={() => setSelectedEntry(entry)}
+                  >
+                    <span>#{entry.seq}</span>
+                    <strong>{entry.type}</strong>
+                    <time dateTime={entry.ts}>{entry.ts}</time>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <aside
+            className="run-console__inspector"
+            data-testid="ledger-inspector"
+            aria-label="Ledger event details"
+          >
+            <h3>Receipt details</h3>
+            {visibleSelectedEntry ? (
+              <>
+                <p>
+                  Sequence {visibleSelectedEntry.seq} ·{" "}
+                  {visibleSelectedEntry.type}
+                </p>
+                <pre>
+                  {JSON.stringify(visibleSelectedEntry.payload, null, 2)}
+                </pre>
+                <p>Hash: {visibleSelectedEntry.hash}</p>
+              </>
+            ) : (
+              <p>Select a ledger event to inspect its evidence.</p>
+            )}
+          </aside>
         </div>
       )}
     </section>

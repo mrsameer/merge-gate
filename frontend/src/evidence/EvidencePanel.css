@@ -26,3 +26,7 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.evidence-panel button + button {
+  margin-left: 0.5rem;
+}

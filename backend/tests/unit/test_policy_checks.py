@@ -2,6 +2,7 @@
 
 from mergegate.acceptance.policy import check_policy
 from mergegate.models import Policy
+from mergegate.orchestrator.nodes import _policy_ledger_payloads
 
 
 def test_protected_path_violation_names_path_and_matching_rule() -> None:
@@ -53,3 +54,36 @@ def test_forbidden_pattern_violation_names_pattern_and_source_path() -> None:
     assert result.violations[0].kind == "forbidden_pattern"
     assert result.violations[0].offender == "pytest.mark.skip"
     assert result.violations[0].path == "tests/test_orders.py"
+
+
+def test_policy_receipts_capture_passed_rules_and_named_offenders() -> None:
+    policy = Policy(
+        protected_paths=["app/auth/**"],
+        forbidden_diff_patterns=["pytest.mark.skip"],
+    )
+    result = check_policy(
+        policy,
+        changed_files=["app/auth/security.py"],
+        diff="",
+    )
+
+    assert _policy_ledger_payloads(policy, result, attempt=2) == [
+        {
+            "attempt": 2,
+            "kind": "protected_path",
+            "rule": "app/auth/**",
+            "passed": False,
+            "offending": "app/auth/security.py",
+            "path": "app/auth/security.py",
+            "message": (
+                "protected path modified: app/auth/security.py "
+                "(matched policy rule app/auth/**)"
+            ),
+        },
+        {
+            "attempt": 2,
+            "kind": "forbidden_pattern",
+            "rule": "pytest.mark.skip",
+            "passed": True,
+        },
+    ]
