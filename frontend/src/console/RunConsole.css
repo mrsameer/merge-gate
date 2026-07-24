@@ -143,3 +143,8 @@
   color: #cbd5e1;
   font-size: 0.7rem;
 }
+
+.run-console__action {
+  font-family: monospace;
+  color: var(--text-accent, #185fa5);
+}

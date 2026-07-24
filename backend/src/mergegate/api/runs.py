@@ -523,6 +523,17 @@ def start_run(run_id: str) -> JSONResponse:
         )
         return _run_json(run)
 
+    # Restore the target repo to a clean, genuinely red baseline before every
+    # run. A previous run can leave changes in the base working tree; without
+    # this the next run has no red baseline and stops as NO_PROGRESS. Purely a
+    # pre-clean step, so a failure here must not block the run.
+    try:
+        reset = _reset_repo_tree(run.repo_ref)
+        removed = f" (removed {len(reset['removed'])})" if reset["removed"] else ""
+        emit("harness_output", {"summary": f"prepared a clean baseline{removed}"})
+    except Exception:  # noqa: BLE001 - best-effort baseline hygiene
+        pass
+
     selection = _select_provider(record)
     provider = selection.provider
     subdir = _repo_subdir(run.repo_ref)
@@ -533,6 +544,9 @@ def start_run(run_id: str) -> JSONResponse:
         adapter_kwargs = {"changes": demo_idempotency_changes(prefix=prefix)}
     elif provider in {"anthropic", "claude-agent-sdk", "gemini", "aider", "codex"}:
         adapter_kwargs = {"model": selection.model}
+        if provider == "anthropic":
+            # Stream the agent's live actions to the run console.
+            adapter_kwargs["on_event"] = emit
 
     context = RunContext(
         run=run,

@@ -43,6 +43,7 @@ from claude_agent_sdk import (
     PermissionMode,
     ResultMessage,
     TextBlock,
+    ToolUseBlock,
 )
 from claude_agent_sdk import query as sdk_query
 
@@ -89,6 +90,24 @@ _TOKEN_FIELDS = (
 # The SDK `query` signature: called with keyword `prompt`/`options`, returns an
 # async iterator of agent messages. Injectable so tests can supply a fake.
 QueryFn = Callable[..., AsyncIterator[Any]]
+
+# Optional sink for streaming live agent actions to the run console. It mirrors
+# the orchestrator's event sink; a `None` sink (or any raised error) simply
+# means no live feed — it must never affect the run or the recovered diff.
+EventSink = Callable[[str, dict], None]
+
+# Human verb for each SDK tool so the live feed reads like an activity log
+# ("editing router.py", "running pytest ...") rather than raw tool names.
+_TOOL_VERBS = {
+    "Write": "writing",
+    "Edit": "editing",
+    "MultiEdit": "editing",
+    "NotebookEdit": "editing",
+    "Read": "reading",
+    "Bash": "running",
+    "Grep": "searching",
+    "Glob": "searching",
+}
 
 
 def _build_prompt(objective: str, feedback: StructuredFeedback | None) -> str:
@@ -150,11 +169,40 @@ class AnthropicHarnessAdapter(HarnessAdapter):
         api_key: str | None = None,
         permission_mode: PermissionMode = DEFAULT_PERMISSION_MODE,
         query_fn: QueryFn = sdk_query,
+        on_event: EventSink | None = None,
     ) -> None:
         self._model = model
         self._api_key = api_key
         self._permission_mode: PermissionMode = permission_mode
         self._query_fn = query_fn
+        self._on_event = on_event
+
+    def _emit(self, summary: str, **extra: object) -> None:
+        """Best-effort `harness_output` event for the live action feed.
+
+        The feed is purely observational; a missing sink or any failure here
+        must never interrupt the agent or the diff recovered from git.
+        """
+        text = " ".join(summary.split())
+        if not text or self._on_event is None:
+            return
+        try:
+            self._on_event("harness_output", {"summary": text[:160], **extra})
+        except Exception:
+            pass
+
+    def _emit_tool(self, block: ToolUseBlock) -> None:
+        name = getattr(block, "name", "tool")
+        payload = getattr(block, "input", {}) or {}
+        target = (
+            payload.get("file_path")
+            or payload.get("path")
+            or payload.get("command")
+            or payload.get("pattern")
+            or ""
+        )
+        verb = _TOOL_VERBS.get(name, name)
+        self._emit(f"{verb} {target}", tool=name)
 
     def propose_changes(
         self,
@@ -218,6 +266,9 @@ class AnthropicHarnessAdapter(HarnessAdapter):
                 for block in message.content:
                     if isinstance(block, TextBlock):
                         log_parts.append(block.text)
+                        self._emit(block.text)
+                    elif isinstance(block, ToolUseBlock):
+                        self._emit_tool(block)
             elif isinstance(message, ResultMessage):
                 usage = _extract_usage(message)
                 if message.result:

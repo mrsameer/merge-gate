@@ -230,14 +230,34 @@ export function RunConsole({
 
           <ol className="run-console__timeline" data-testid="event-log">
             {events.length === 0 && <li>No run in progress.</li>}
-            {events.map((event) => (
-              <li key={event.seq} data-testid={`event-${event.seq}`}>
-                <span className="run-console__event-type">{event.type}</span>
-                <span className="run-console__event-data">
-                  {JSON.stringify(event.data)}
-                </span>
-              </li>
-            ))}
+            {events.map((event) => {
+              const action =
+                event.type === "harness_output" &&
+                typeof event.data.summary === "string"
+                  ? (event.data.summary as string)
+                  : null;
+              return (
+                <li key={event.seq} data-testid={`event-${event.seq}`}>
+                  {action ? (
+                    <span
+                      className="run-console__action"
+                      data-testid="agent-action"
+                    >
+                      {action}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="run-console__event-type">
+                        {event.type}
+                      </span>
+                      <span className="run-console__event-data">
+                        {JSON.stringify(event.data)}
+                      </span>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ol>
 
           <div className="run-console__ledger">

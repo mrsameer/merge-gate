@@ -23,6 +23,7 @@ from claude_agent_sdk import (
     CLINotFoundError,
     ResultMessage,
     TextBlock,
+    ToolUseBlock,
 )
 
 from mergegate.acceptance.commands import run_command
@@ -180,6 +181,39 @@ def test_propose_changes_captures_diff_and_maps_usage(
     assert result.model_calls == 2
     assert result.usd == 0.05
     assert "Editing the file." in result.log
+
+
+def test_on_event_streams_live_actions(workspace: Worktree) -> None:
+    events: list[tuple[str, dict]] = []
+    fake = FakeQuery(
+        [
+            AssistantMessage(
+                content=[
+                    TextBlock("Adding the idempotency check."),
+                    ToolUseBlock(
+                        id="t1",
+                        name="Write",
+                        input={"file_path": "tests/test_idempotency.py"},
+                    ),
+                ],
+                model="claude",
+            ),
+            _result_message(),
+        ]
+    )
+    adapter = AnthropicHarnessAdapter(
+        api_key="test-key",
+        query_fn=fake,
+        on_event=lambda event_type, payload: events.append((event_type, payload)),
+    )
+
+    adapter.propose_changes("do the thing", None, workspace)
+
+    assert events, "expected live-action events to be emitted"
+    assert all(event_type == "harness_output" for event_type, _ in events)
+    summaries = [payload["summary"] for _, payload in events]
+    assert any("Adding the idempotency check" in text for text in summaries)
+    assert any("writing tests/test_idempotency.py" in text for text in summaries)
 
 
 def test_prompt_embeds_objective_and_prior_feedback(workspace: Worktree) -> None:
