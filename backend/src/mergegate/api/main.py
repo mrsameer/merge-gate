@@ -18,6 +18,8 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from mergegate.api.events import router as events_router
+from mergegate.api.runs import router as runs_router
+from mergegate.api.workflows import router as workflows_router
 
 app = FastAPI(title="MergeGate Control Plane")
 
@@ -31,6 +33,8 @@ def health() -> dict[str, str]:
 
 
 api_router.include_router(events_router)
+api_router.include_router(workflows_router)
+api_router.include_router(runs_router)
 
 app.include_router(api_router)
 
