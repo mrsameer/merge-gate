@@ -406,6 +406,22 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
       setRun(await client.decideGate(runId, "final", "approve"));
     });
 
+  const handleResetRepo = () =>
+    guard(async () => {
+      setNotice(null);
+      const result = await client.resetRepo(run?.repo_ref ?? repoRef);
+      const removed = result.removed.length
+        ? ` (removed ${result.removed.length} untracked file${
+            result.removed.length === 1 ? "" : "s"
+          })`
+        : "";
+      setNotice(
+        result.clean
+          ? `Reset ${result.repo_ref} to a clean baseline${removed}.`
+          : `Reset ran but ${result.repo_ref} is still not clean; check it manually.`,
+      );
+    });
+
   const updateCriterion = (index: number, command: string) => {
     if (!contract) return;
     setCriteria(
@@ -572,6 +588,14 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
           New run
         </button>
       )}
+      <button
+        type="button"
+        onClick={handleResetRepo}
+        disabled={busy || run?.status === "running"}
+        title="Revert tracked edits and remove leftover untracked files so the next run starts from a red baseline"
+      >
+        Reset demo repo
+      </button>
 
       {error && (
         <p

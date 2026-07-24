@@ -173,6 +173,12 @@ export function createApiClient(options: ApiClientOptions = {}) {
       call<EvidenceBundle | Record<string, unknown>>(`/runs/${runId}/evidence`),
     replayRun: (runId: string) =>
       call<Verdict>(`/runs/${runId}/replay`, { method: "POST" }),
+
+    resetRepo: (repoRef: string) =>
+      call<{ repo_ref: string; clean: boolean; removed: string[]; status: string }>(
+        "/repo/reset",
+        { method: "POST", body: JSON.stringify({ repo_ref: repoRef }) },
+      ),
   };
 }
 

@@ -143,6 +143,10 @@ class RejectRequest(BaseModel):
     reason: str | None = None
 
 
+class ResetRepoRequest(BaseModel):
+    repo_ref: str
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -217,6 +221,35 @@ def _resolve_repo_ref(repo_ref: str) -> str:
     if project_relative.is_dir():
         return str(project_relative)
     return repo_ref
+
+
+def _reset_repo_tree(repo_ref: str) -> dict:
+    """Restore ``repo_ref``'s working tree to a pristine ``HEAD`` baseline.
+
+    Reverts tracked modifications *and* removes leftover untracked files (the
+    part a bare ``git checkout`` misses), scoped to the target repository so a
+    subsequent run starts from a genuinely red baseline. Operations are
+    confined to ``repo_ref`` via ``cwd`` and a ``.`` pathspec.
+    """
+    resolved = _resolve_repo_ref(repo_ref)
+    top = run_command(["git", "rev-parse", "--show-toplevel"], cwd=resolved)
+    if not top.succeeded:
+        raise HTTPException(
+            status_code=400, detail=f"{repo_ref!r} is not inside a git repository"
+        )
+    run_command(["git", "checkout", "HEAD", "--", "."], cwd=resolved)
+    removed = run_command(["git", "clean", "-fd", "."], cwd=resolved)
+    status = run_command(["git", "status", "--porcelain", "."], cwd=resolved)
+    return {
+        "repo_ref": repo_ref,
+        "clean": status.succeeded and not status.stdout.strip(),
+        "removed": [
+            line.removeprefix("Removing ").strip()
+            for line in removed.stdout.splitlines()
+            if line.strip()
+        ],
+        "status": status.stdout,
+    }
 
 
 def _select_provider(record: RunRecord) -> ProviderSelection:
@@ -294,6 +327,18 @@ def create_run(request: CreateRunRequest) -> JSONResponse:
     )
     store.add_run(run, workflow)
     return _run_json(run, status_code=201)
+
+
+@router.post("/repo/reset")
+def reset_repo(request: ResetRepoRequest) -> JSONResponse:
+    """Restore a demo target repository to a pristine baseline.
+
+    A completed run can leave changes in the base working tree; the next run
+    then has no clean red baseline and stops as ``NO_PROGRESS``. This reverts
+    tracked edits and clears leftover untracked files so the baseline is red
+    again before the next run.
+    """
+    return JSONResponse(content=_reset_repo_tree(request.repo_ref))
 
 
 @router.get("/runs/{run_id}")
