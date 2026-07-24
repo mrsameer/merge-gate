@@ -70,6 +70,8 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
   const setCriteria = useAppStore((s) => s.setCriteria);
 
   const [repoRef, setRepoRef] = useState(DEFAULT_REPO_REF);
+  const [provider, setProvider] = useState("scripted");
+  const [model, setModel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -92,6 +94,8 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
         workflow_id: DEFAULT_WORKFLOW_ID,
         objective,
         repo_ref: repoRef,
+        provider,
+        ...(model.trim() ? { model: model.trim() } : {}),
         budgets: DEFAULT_BUDGETS,
       });
       setRun(created);
@@ -130,6 +134,18 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
       setRun(started);
     });
 
+  const handleRefreshStatus = () =>
+    guard(async () => {
+      if (!runId) return;
+      setRun(await client.getRun(runId));
+    });
+
+  const handleApproveMerge = () =>
+    guard(async () => {
+      if (!runId) return;
+      setRun(await client.decideGate(runId, "final", "approve"));
+    });
+
   const updateCriterion = (index: number, command: string) => {
     if (!contract) return;
     setCriteria(
@@ -161,6 +177,32 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
           value={repoRef}
           disabled={runId !== null}
           onChange={(e) => setRepoRef(e.target.value)}
+        />
+      </label>
+
+      <label className="inspector-field">
+        <span>Provider</span>
+        <select
+          aria-label="Provider"
+          value={provider}
+          disabled={runId !== null}
+          onChange={(e) => setProvider(e.target.value)}
+        >
+          <option value="scripted">Scripted demo</option>
+          <option value="anthropic">Claude Code</option>
+          <option value="gemini">Gemini CLI</option>
+          <option value="cursor">Cursor</option>
+        </select>
+      </label>
+
+      <label className="inspector-field">
+        <span>Model</span>
+        <input
+          aria-label="Model"
+          value={model}
+          placeholder={provider === "gemini" ? "gemini-2.5-pro" : "Default"}
+          disabled={runId !== null || provider === "scripted" || provider === "cursor"}
+          onChange={(e) => setModel(e.target.value)}
         />
       </label>
 
@@ -236,6 +278,16 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
       <button type="button" onClick={handleStart} disabled={busy || !approved}>
         Start run
       </button>
+      {runId && (
+        <button type="button" onClick={handleRefreshStatus} disabled={busy}>
+          Refresh run status
+        </button>
+      )}
+      {approved && run?.status === "awaiting_gate" && run.current_attempt > 0 && (
+        <button type="button" onClick={handleApproveMerge} disabled={busy}>
+          Approve merge
+        </button>
+      )}
 
       {error && (
         <p

@@ -52,6 +52,7 @@ from mergegate.models import (
     RunStatus,
 )
 from mergegate.orchestrator import gates
+from mergegate.orchestrator.default_workflow import build_default_workflow
 from mergegate.orchestrator.demo import demo_idempotency_changes, is_demo_repo
 from mergegate.orchestrator.nodes import RunContext, drive_run
 
@@ -103,6 +104,8 @@ class CreateRunRequest(BaseModel):
     workflow_id: str
     objective: str
     repo_ref: str
+    provider: str | None = None
+    model: str | None = None
     budgets: Budget
 
 
@@ -172,6 +175,22 @@ def _repo_subdir(repo_ref: str) -> str:
         return "."
 
 
+def _resolve_repo_ref(repo_ref: str) -> str:
+    """Resolve a path supplied by the UI, including the bundled demo repo.
+
+    The backend is commonly launched from ``backend/`` while the demo fixture
+    lives at the repository root. Preserve any existing caller-relative path,
+    then fall back to the project-root-relative location for the built-in demo.
+    """
+    supplied = Path(repo_ref)
+    if supplied.is_dir():
+        return str(supplied.resolve())
+    project_relative = Path(__file__).resolve().parents[4] / supplied
+    if project_relative.is_dir():
+        return str(project_relative)
+    return repo_ref
+
+
 def _select_provider(run: Run) -> str:
     """Pick the harness provider for this run.
 
@@ -180,6 +199,8 @@ def _select_provider(run: Run) -> str:
     the happy path runs offline with no API key, and everything else falls back
     to the configured default provider.
     """
+    if run.provider:
+        return run.provider
     env_provider = os.environ.get("MERGEGATE_PROVIDER")
     if env_provider:
         return env_provider
@@ -197,6 +218,11 @@ def _select_provider(run: Run) -> str:
 def create_run(request: CreateRunRequest) -> JSONResponse:
     """Create a run; it sits at the contract gate with no attempts yet."""
     workflow = store.get_workflow(request.workflow_id)
+    # The UI renders this built-in graph immediately, so its first run must not
+    # require a separate hidden workflow-creation request.
+    if workflow is None and request.workflow_id == "default-four-role-loop":
+        workflow = build_default_workflow(request.workflow_id)
+        store.add_workflow(workflow)
     if workflow is None:
         raise HTTPException(
             status_code=404, detail=f"workflow {request.workflow_id!r} not found"
@@ -206,7 +232,9 @@ def create_run(request: CreateRunRequest) -> JSONResponse:
         id=f"run-{uuid4()}",
         workflow_id=request.workflow_id,
         objective=request.objective,
-        repo_ref=request.repo_ref,
+        repo_ref=_resolve_repo_ref(request.repo_ref),
+        provider=request.provider,
+        model=request.model,
         status=RunStatus.AWAITING_GATE,
         budgets=request.budgets,
         current_attempt=0,
@@ -305,6 +333,8 @@ def start_run(run_id: str) -> JSONResponse:
     if provider == "scripted":
         prefix = subdir if subdir != "." else ""
         adapter_kwargs = {"changes": demo_idempotency_changes(prefix=prefix)}
+    elif provider in {"anthropic", "gemini"} and run.model:
+        adapter_kwargs = {"model": run.model}
 
     def emit(event_type: str, payload: dict) -> None:
         event_bus.publish(run.id, event_type, payload)

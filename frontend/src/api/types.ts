@@ -82,6 +82,8 @@ export interface Run {
   workflow_id: string;
   objective: string;
   repo_ref: string;
+  provider?: string | null;
+  model?: string | null;
   status: RunStatus;
   budgets: Budget;
   current_attempt: number;

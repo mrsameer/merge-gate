@@ -110,6 +110,8 @@ export function createApiClient(options: ApiClientOptions = {}) {
       workflow_id: string;
       objective: string;
       repo_ref: string;
+      provider?: string;
+      model?: string;
       budgets: Budget;
     }) => call<Run>("/runs", { method: "POST", body: JSON.stringify(body) }),
 

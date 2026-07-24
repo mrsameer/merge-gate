@@ -16,12 +16,14 @@ from typing import Any
 from mergegate.harness.anthropic import AnthropicHarnessAdapter
 from mergegate.harness.base import HarnessAdapter
 from mergegate.harness.cursor import CursorAdapter
+from mergegate.harness.gemini import GeminiHarnessAdapter
 from mergegate.harness.scripted import ScriptedHarnessAdapter
 
 # Provider name -> adapter factory. Factories accept keyword args so callers
 # can pass provider-specific configuration (model, api_key, changes, ...).
 ADAPTER_FACTORIES: Mapping[str, Callable[..., HarnessAdapter]] = {
     "cursor": CursorAdapter,
+    "gemini": GeminiHarnessAdapter,
     "anthropic": AnthropicHarnessAdapter,
     "scripted": ScriptedHarnessAdapter,
 }

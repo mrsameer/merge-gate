@@ -47,6 +47,57 @@ def test_create_run_returns_201_awaiting_contract_gate(client, workflow_id, obje
     assert "id" in body
 
 
+def test_create_run_preserves_explicit_provider_and_model(
+    client, workflow_id, objective
+):
+    response = client.post(
+        "/api/runs",
+        json={
+            "workflow_id": workflow_id,
+            "objective": objective,
+            "repo_ref": "demo-repo",
+            "provider": "gemini",
+            "model": "gemini-2.5-pro",
+            "budgets": {
+                "max_attempts": 3,
+                "max_wall_clock_s": 300,
+                "max_model_calls": 20,
+            },
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["provider"] == "gemini"
+    assert response.json()["model"] == "gemini-2.5-pro"
+
+
+def test_ui_default_workflow_is_available_without_a_prior_workflow_request(
+    client, objective
+):
+    """A freshly opened UI can create its first run against its default graph."""
+    response = client.post(
+        "/api/runs",
+        json={
+            "workflow_id": "default-four-role-loop",
+            "objective": objective,
+            "repo_ref": "demo-repo",
+            "provider": "scripted",
+            "budgets": {
+                "max_attempts": 3,
+                "max_wall_clock_s": 300,
+                "max_model_calls": 20,
+            },
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["workflow_id"] == "default-four-role-loop"
+    generated = client.post(
+        f"/api/runs/{response.json()['id']}/criteria:generate", json={"mode": "hybrid"}
+    )
+    assert generated.status_code == 200, generated.text
+
+
 def test_get_run_returns_status_and_cost(client, run_id):
     """GET /runs/{id} exposes status, attempt counter, and cost accounting."""
     response = client.get(f"/api/runs/{run_id}")

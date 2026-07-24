@@ -78,6 +78,31 @@ describe("InspectorPanel", () => {
     );
   });
 
+  it("lets the operator choose Gemini and sends it with the run request", async () => {
+    const createRun = vi.fn().mockResolvedValue(makeRun({ provider: "gemini" }));
+    const client = { createRun } as unknown as ApiClient;
+    useAppStore.getState().selectNode("input");
+    useAppStore.getState().setObjective("Add idempotency keys");
+    render(<InspectorPanel client={client} />);
+
+    fireEvent.change(screen.getByLabelText("Provider"), {
+      target: { value: "gemini" },
+    });
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "gemini-2.5-pro" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create run/i }));
+
+    await waitFor(() =>
+      expect(createRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "gemini",
+          model: "gemini-2.5-pro",
+        }),
+      ),
+    );
+  });
+
   it("generates, edits, approves criteria and starts the run", async () => {
     const generateCriteria = vi.fn().mockResolvedValue(makeContract());
     const updateCriteria = vi.fn().mockResolvedValue(
@@ -134,6 +159,34 @@ describe("InspectorPanel", () => {
     await waitFor(() =>
       expect(useAppStore.getState().run?.status).toBe("running"),
     );
+  });
+
+  it("refreshes the completed run and approves its final merge gate", async () => {
+    const getRun = vi
+      .fn()
+      .mockResolvedValue(makeRun({ status: "awaiting_gate", current_attempt: 1 }));
+    const decideGate = vi.fn().mockResolvedValue(
+      makeRun({ status: "SUCCESS", current_attempt: 1 }),
+    );
+    const client = { getRun, decideGate } as unknown as ApiClient;
+    useAppStore.setState({
+      selectedNodeId: "input",
+      runId: "run-1",
+      run: makeRun({ status: "running", current_attempt: 1 }),
+      contract: makeContract({ approved: true }),
+    });
+    render(<InspectorPanel client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /refresh run status/i }));
+    await waitFor(() =>
+      expect(useAppStore.getState().run?.status).toBe("awaiting_gate"),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /approve merge/i }));
+
+    await waitFor(() =>
+      expect(decideGate).toHaveBeenCalledWith("run-1", "final", "approve"),
+    );
+    expect(useAppStore.getState().run?.status).toBe("SUCCESS");
   });
 
   it("surfaces an api error message", async () => {

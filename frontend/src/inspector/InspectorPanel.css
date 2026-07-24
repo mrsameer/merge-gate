@@ -17,7 +17,8 @@
 }
 
 .inspector-field textarea,
-.inspector-field input {
+.inspector-field input,
+.inspector-field select {
   width: 100%;
   box-sizing: border-box;
 }

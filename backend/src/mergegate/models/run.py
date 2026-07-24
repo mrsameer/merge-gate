@@ -16,6 +16,8 @@ class Run(BaseModel):
     workflow_id: str
     objective: str
     repo_ref: str
+    provider: str | None = None
+    model: str | None = None
     status: RunStatus
     budgets: Budget
     attempts: list[Attempt] = Field(default_factory=list)
