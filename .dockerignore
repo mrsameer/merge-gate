@@ -1,6 +1,7 @@
 .git
 .gitignore
 ._*
+**/._*
 .DS_Store
 .claude
 .playwright-cli
