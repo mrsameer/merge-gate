@@ -281,4 +281,11 @@ The coding harness sits behind a provider adapter interface. A default provider 
 - **Model/provider available at run time**: Valid API keys/credits and the provided harness access are available and validated before the demo.
 - **Bounded budgets are pre-configured**: Attempt count, wall-clock, and model-call budgets are set to demo-appropriate values before a run starts.
 - **Twenty CRM integration is a stretch dependency**: Any real-world task against the Twenty CRM codebase is attempted only if the full loop and demo are green well ahead of time, and is not required for the graded core.
+- **Criterion evaluators (FR-001c scope)**: The acceptance engine evaluates criteria through a
+  pluggable criterion-evaluator interface. v1 ships built-in evaluators for build, lint, existing
+  tests, new tests, required-file/feature-exists, protected-paths, coverage-threshold,
+  OpenAPI/API-compatibility, migration apply/rollback, duplicate-order, and forbidden-diff. The
+  `performance-improves-against-baseline` and `follows-requested-architecture` criterion types are
+  supported through the same interface but are demonstrated post-MVP; the seed demo task exercises
+  the concrete subset above.
 - **Bonus capabilities are optional, not required**: Token/model-call/cost tracking (covered by FR-022), live agent/command streaming, git-worktree/container isolation (covered by FR-011), pause/resume/checkpoint recovery (covered by FR-023), reusable versioned workflow templates, and external-harness/multi-provider integration (covered by FR-034/FR-035) are treated as bonus enhancements layered on top of the required core. Reusable versioned templates specifically are out of scope for the graded core and pursued only as a stretch.
