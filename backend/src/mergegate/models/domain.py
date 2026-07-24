@@ -173,6 +173,17 @@ class RedGreenEvidence(BaseModel):
     command: str = ""
 
 
+class Policy(BaseModel):
+    protected_paths: list[str] = Field(default_factory=list)
+    forbidden_diff_patterns: list[str] = Field(default_factory=list)
+
+
+class PolicyViolation(BaseModel):
+    kind: str
+    offender: str
+    message: str
+
+
 class Attempt(BaseModel):
     id: str
     run_id: str
@@ -186,6 +197,7 @@ class Attempt(BaseModel):
     evidence: RedGreenEvidence | None = None
     failure_signature: str | None = None
     feedback: StructuredFeedback | None = None
+    policy_violation: PolicyViolation | None = None
 
 
 class Run(BaseModel):
@@ -202,13 +214,10 @@ class Run(BaseModel):
     branch_ref: str | None = None
     undelivered_report: dict[str, Any] | None = None
     clarification_request: ClarificationRequest | None = None
+    policy: Policy = Field(default_factory=Policy)
+    policy_violation: PolicyViolation | None = None
     started_at: datetime | None = None
     ended_at: datetime | None = None
-
-
-class Policy(BaseModel):
-    protected_paths: list[str] = Field(default_factory=list)
-    forbidden_diff_patterns: list[str] = Field(default_factory=list)
 
 
 class NodeConfig(BaseModel):

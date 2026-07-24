@@ -5,8 +5,22 @@ import subprocess
 from pathlib import Path
 
 from mergegate.acceptance.evaluators import get_evaluator
+from mergegate.acceptance.policy import check_policy
 from mergegate.acceptance.verdict import compute_verdict
-from mergegate.models import AcceptanceInput, CheckResult, Contract, Verdict
+from mergegate.models import (
+    AcceptanceInput,
+    CheckResult,
+    Contract,
+    Policy,
+    PolicyViolation,
+    Verdict,
+)
+
+
+class PolicyBlockedError(Exception):
+    def __init__(self, violation: PolicyViolation) -> None:
+        self.violation = violation
+        super().__init__(violation.message)
 
 
 def _tool_versions() -> dict[str, str]:
@@ -31,7 +45,20 @@ def run_acceptance_engine(
     contract: Contract,
     workspace: Path,
     commit_sha: str = "HEAD",
+    changed_files: list[str] | None = None,
+    diff: str = "",
+    policy: Policy | None = None,
 ) -> Verdict:
+    if policy is not None and changed_files is not None:
+        violation = check_policy(
+            policy=policy,
+            changed_files=changed_files,
+            diff=diff,
+            workspace=workspace,
+        )
+        if violation is not None:
+            raise PolicyBlockedError(violation)
+
     checks: list[CheckResult] = []
     ordered = sorted(contract.criteria, key=lambda c: c.priority)
     for criterion in ordered:

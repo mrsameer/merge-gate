@@ -17,6 +17,15 @@ export function RunConsole() {
       {run?.undelivered_report ? (
         <p role="alert">{run.undelivered_report.message}</p>
       ) : null}
+      {run?.policy_violation ? (
+        <section role="alert" aria-label="Policy blocked">
+          <h3>Policy blocked</h3>
+          <p>{run.policy_violation.message}</p>
+          <p>
+            {run.policy_violation.kind}: {run.policy_violation.offender}
+          </p>
+        </section>
+      ) : null}
       {run?.clarification_request ? (
         <section role="alert" aria-label="Clarification required">
           <h3>Clarification required</h3>

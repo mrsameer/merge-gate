@@ -1,7 +1,8 @@
 import { create } from "zustand";
 
-import type { Contract, Run } from "../api/client";
+import type { Contract, Policy, Run } from "../api/client";
 import {
+  DEFAULT_POLICY,
   approveCriteria,
   approveFinalGate,
   createRun,
@@ -12,11 +13,13 @@ import {
 
 interface RunState {
   objective: string;
+  policy: Policy;
   run: Run | null;
   contract: Contract | null;
   log: string[];
   replayLog: string;
   setObjective: (objective: string) => void;
+  setPolicy: (policy: Policy) => void;
   setReplayLog: (message: string) => void;
   submitObjective: () => Promise<void>;
   generateAndApprove: () => Promise<void>;
@@ -27,16 +30,18 @@ interface RunState {
 
 export const useRunStore = create<RunState>((set, get) => ({
   objective: "",
+  policy: DEFAULT_POLICY,
   run: null,
   contract: null,
   log: [],
   replayLog: "",
   setObjective: (objective) => set({ objective }),
+  setPolicy: (policy) => set({ policy }),
   setReplayLog: (replayLog) => set({ replayLog }),
   submitObjective: async () => {
     const objective = get().objective.trim();
     if (!objective) return;
-    const run = await createRun(objective);
+    const run = await createRun(objective, get().policy);
     set({ run, log: [`Run ${run.id} created`] });
   },
   generateAndApprove: async () => {
@@ -75,6 +80,9 @@ export const useRunStore = create<RunState>((set, get) => ({
           : []),
         ...(updated.clarification_request
           ? [`Clarification required: ${updated.clarification_request.message}`]
+          : []),
+        ...(updated.policy_violation
+          ? [`Policy blocked: ${updated.policy_violation.message}`]
           : []),
       ],
     });

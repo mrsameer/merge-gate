@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 from mergegate.acceptance.baseline import run_baseline_checks
-from mergegate.acceptance.engine import run_acceptance_engine
+from mergegate.acceptance.engine import PolicyBlockedError, run_acceptance_engine
 from mergegate.acceptance.evidence import build_red_green_evidence
+from mergegate.acceptance.policy import extract_policy
 from mergegate.criteria.generate import generate_hybrid_criteria
 from mergegate.harness.base import HarnessAdapter, HarnessResult
 from mergegate.models import (
@@ -14,12 +15,14 @@ from mergegate.models import (
     CheckResult,
     Contract,
     Node,
+    PolicyViolation,
     RedGreenEvidence,
     Run,
     StructuredFeedback,
     Verdict,
 )
 from mergegate.orchestrator.graph import default_four_role_loop
+from mergegate.workspace.worktree import capture_attempt_diff
 
 
 @dataclass
@@ -44,6 +47,7 @@ class AttemptContext:
     baseline_checks: list[CheckResult] = field(default_factory=list)
     verdict: Verdict | None = None
     evidence: RedGreenEvidence | None = None
+    policy_violation: PolicyViolation | None = None
     node_results: list[NodeResult] = field(default_factory=list)
 
 
@@ -134,11 +138,32 @@ class FourRoleNodeRunner:
         node = self._node_for_role(AgentRole.VALIDATION)
         if ctx.run.contract is None:
             raise ValueError("contract required for validation")
-        verdict = run_acceptance_engine(
-            attempt_id=ctx.attempt_id,
-            contract=ctx.run.contract,
-            workspace=ctx.worktree_path,
-        )
+        policy = extract_policy(ctx.run.contract, run_policy=ctx.run.policy)
+        attempt_diff = capture_attempt_diff(ctx.worktree_path, ctx.changed_files)
+        try:
+            verdict = run_acceptance_engine(
+                attempt_id=ctx.attempt_id,
+                contract=ctx.run.contract,
+                workspace=ctx.worktree_path,
+                changed_files=ctx.changed_files,
+                diff=attempt_diff,
+                policy=policy,
+            )
+        except PolicyBlockedError as exc:
+            ctx.policy_violation = exc.violation
+            ctx.node_results.append(
+                NodeResult(
+                    role=AgentRole.VALIDATION,
+                    node_id=node.id,
+                    status="failed",
+                    output={
+                        "policy_blocked": True,
+                        "kind": exc.violation.kind,
+                        "offender": exc.violation.offender,
+                    },
+                )
+            )
+            return ctx
         ctx.verdict = verdict
         ctx.evidence = self._build_evidence(ctx, ctx.run.contract, verdict)
         ctx.node_results.append(

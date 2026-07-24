@@ -5,7 +5,19 @@ export type RunStatus =
   | "SUCCESS"
   | "EXHAUSTED"
   | "NO_PROGRESS"
-  | "CLARIFICATION_REQUIRED";
+  | "CLARIFICATION_REQUIRED"
+  | "POLICY_BLOCKED";
+
+export interface Policy {
+  protected_paths: string[];
+  forbidden_diff_patterns: string[];
+}
+
+export interface PolicyViolation {
+  kind: string;
+  offender: string;
+  message: string;
+}
 
 export interface ClarificationConflict {
   kind: string;
@@ -77,6 +89,7 @@ export interface Attempt {
   evidence?: RedGreenEvidence | null;
   feedback?: StructuredFeedback | null;
   failure_signature?: string | null;
+  policy_violation?: PolicyViolation | null;
 }
 
 export interface Run {
@@ -92,6 +105,8 @@ export interface Run {
   cost?: { model_calls: number };
   undelivered_report?: UndeliveredReport | null;
   clarification_request?: ClarificationRequest | null;
+  policy?: Policy;
+  policy_violation?: PolicyViolation | null;
 }
 
 const API_BASE = "/api";
@@ -107,13 +122,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function createRun(objective: string): Promise<Run> {
+export const DEFAULT_POLICY: Policy = {
+  protected_paths: ["app/auth/**"],
+  forbidden_diff_patterns: [
+    "pytest.mark.skip",
+    "@pytest.mark.skip",
+    "pytest.skip(",
+  ],
+};
+
+export async function createRun(
+  objective: string,
+  policy: Policy = DEFAULT_POLICY,
+): Promise<Run> {
   return request<Run>("/runs", {
     method: "POST",
     body: JSON.stringify({
       workflow_id: "default-four-role-loop",
       objective,
       repo_ref: "demo-repo",
+      policy,
     }),
   });
 }

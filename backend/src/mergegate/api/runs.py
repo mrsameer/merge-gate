@@ -6,9 +6,10 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from mergegate.acceptance.policy import default_policy
 from mergegate.config.settings import get_settings
 from mergegate.ledger.store import RunStore
-from mergegate.models import Budget, Run, RunStatus, Verdict
+from mergegate.models import Budget, Policy, Run, RunStatus, Verdict
 from mergegate.orchestrator.runner import build_orchestrator
 
 
@@ -26,6 +27,7 @@ class CreateRunRequest(BaseModel):
     objective: str
     repo_ref: str
     budgets: Budget | None = None
+    policy: Policy | None = None
 
 
 def create_app() -> FastAPI:
@@ -53,6 +55,7 @@ def create_app() -> FastAPI:
             objective=body.objective,
             repo_ref=body.repo_ref,
             budgets=body.budgets or Budget(),
+            policy=body.policy or default_policy(),
             status=RunStatus.AWAITING_GATE,
             current_attempt=0,
         )

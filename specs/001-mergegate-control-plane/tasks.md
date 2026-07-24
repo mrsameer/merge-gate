@@ -161,13 +161,13 @@ independently testable increment. Paths follow the web-app layout in plan.md
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T048 [P] [US5] Integration test protected-path + forbidden-diff → POLICY_BLOCKED in `backend/tests/integration/test_policy.py`
+- [x] T048 [P] [US5] Integration test protected-path + forbidden-diff → POLICY_BLOCKED in `backend/tests/integration/test_policy.py`
 
 ### Implementation for User Story 5
 
-- [ ] T049 [US5] Protected-path + forbidden-diff policy checks in `backend/src/mergegate/acceptance/policy.py` (depends on T014)
-- [ ] T050 [US5] Order policy before verdict in the pipeline + `POLICY_BLOCKED` wiring naming the offender in `backend/src/mergegate/acceptance/engine.py` and `orchestrator/runner.py` (depends on T049, T025)
-- [ ] T051 [P] [US5] Policy config surfaced/edited in the node inspector UI in `frontend/src/inspector/` (depends on T030)
+- [x] T049 [US5] Protected-path + forbidden-diff policy checks in `backend/src/mergegate/acceptance/policy.py` (depends on T014)
+- [x] T050 [US5] Order policy before verdict in the pipeline + `POLICY_BLOCKED` wiring naming the offender in `backend/src/mergegate/acceptance/engine.py` and `orchestrator/runner.py` (depends on T049, T025)
+- [x] T051 [P] [US5] Policy config surfaced/edited in the node inspector UI in `frontend/src/inspector/` (depends on T030)
 
 **Checkpoint**: Anti-cheat story demonstrable independently
 

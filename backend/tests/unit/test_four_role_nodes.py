@@ -177,8 +177,10 @@ def test_validation_delegates_to_acceptance_engine(
     assert validation.role == AgentRole.VALIDATION
     assert validation.node_id == "validation"
     assert validation.status == "failed"
-    mock_engine.assert_called_once_with(
-        attempt_id="attempt-1",
-        contract=sample_run.contract,
-        workspace=worktree,
-    )
+    mock_engine.assert_called_once()
+    call_kwargs = mock_engine.call_args.kwargs
+    assert call_kwargs["attempt_id"] == "attempt-1"
+    assert call_kwargs["contract"] == sample_run.contract
+    assert call_kwargs["workspace"] == worktree
+    assert call_kwargs["changed_files"] == ["app/orders/router.py"]
+    assert call_kwargs["policy"] is not None

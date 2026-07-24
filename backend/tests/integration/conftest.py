@@ -55,3 +55,21 @@ def client_no_progress(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestC
         _integration_settings(tmp_path, harness_provider="stub-no-progress")
     )
     return TestClient(create_app())
+
+
+@pytest.fixture
+def client_policy_auth(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    monkeypatch.setenv("MERGEGATE_HARNESS_PROVIDER", "stub-policy-auth")
+    _patch_settings(
+        _integration_settings(tmp_path, harness_provider="stub-policy-auth")
+    )
+    return TestClient(create_app())
+
+
+@pytest.fixture
+def client_policy_skip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    monkeypatch.setenv("MERGEGATE_HARNESS_PROVIDER", "stub-policy-skip")
+    _patch_settings(
+        _integration_settings(tmp_path, harness_provider="stub-policy-skip")
+    )
+    return TestClient(create_app())

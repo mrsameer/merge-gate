@@ -10,13 +10,16 @@ from mergegate.criteria.consistency import detect_contradictions
 from mergegate.criteria.contract import freeze_contract
 from mergegate.harness.stub import (
     AlwaysFailHarnessAdapter,
+    ForbiddenPatternHarnessAdapter,
     NoProgressHarnessAdapter,
+    ProtectedPathHarnessAdapter,
     StubHarnessAdapter,
 )
 from mergegate.ledger.store import RunStore
 from mergegate.models import (
     Attempt,
     ClarificationRequest,
+    PolicyViolation,
     Run,
     RunStatus,
     StructuredFeedback,
@@ -41,6 +44,10 @@ def _build_harness(provider: str):
         return AlwaysFailHarnessAdapter()
     if provider == "stub-no-progress":
         return NoProgressHarnessAdapter()
+    if provider == "stub-policy-auth":
+        return ProtectedPathHarnessAdapter()
+    if provider == "stub-policy-skip":
+        return ForbiddenPatternHarnessAdapter()
     raise ValueError(f"unsupported harness provider: {provider}")
 
 
@@ -173,6 +180,31 @@ class RunOrchestrator:
         )
         return self.store.save(run)
 
+    def _terminate_policy_blocked(
+        self,
+        run: Run,
+        *,
+        violation: PolicyViolation,
+        worktrees: list[Path],
+    ) -> Run:
+        rollback_run(
+            run=run,
+            repo_path=self.repo_path,
+            worktrees=worktrees,
+            reason="policy_blocked",
+        )
+        run.policy_violation = violation
+        run.status = RunStatus.POLICY_BLOCKED
+        run.ended_at = datetime.now(tz=UTC)
+        payload = violation.model_dump(mode="json")
+        self.store.ledger.append(run.id, "policy_block", payload)
+        self.store.ledger.append(
+            run.id,
+            "terminal",
+            {"state": RunStatus.POLICY_BLOCKED.value, "reason": violation.kind},
+        )
+        return self.store.save(run)
+
     def start_run(self, run: Run) -> Run:
         if run.contract is None or not run.contract.approved:
             raise ValueError("contract not approved")
@@ -225,6 +257,27 @@ class RunOrchestrator:
                         "status": node_result.status,
                         "attempt": attempt_index,
                     },
+                )
+
+            if ctx.policy_violation is not None:
+                attempt = Attempt(
+                    id=attempt_id,
+                    run_id=run.id,
+                    index=attempt_index,
+                    worktree_path=str(worktree.path),
+                    branch=worktree.branch,
+                    diff=capture_attempt_diff(worktree.path, ctx.changed_files),
+                    changed_files=ctx.changed_files,
+                    harness_log=ctx.harness_log,
+                    verdict=None,
+                    policy_violation=ctx.policy_violation,
+                )
+                run.attempts.append(attempt)
+                run.current_attempt = attempt_index
+                return self._terminate_policy_blocked(
+                    run,
+                    violation=ctx.policy_violation,
+                    worktrees=worktrees,
                 )
 
             attempt = self._record_attempt(
