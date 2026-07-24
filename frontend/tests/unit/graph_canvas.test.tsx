@@ -6,14 +6,18 @@
 // editing (add/connect/drag) reserved for the node-library task (T058). This
 // pins down the read-only base render before any editing affordances exist.
 
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { GraphCanvas } from "../../src/canvas/GraphCanvas";
+import { CanvasArea } from "../../src/layout/CanvasArea";
 import {
   DEFAULT_WORKFLOW,
   DEFAULT_NODE_POSITIONS,
 } from "../../src/canvas/defaultWorkflow";
 import { toFlowEdges, toFlowNodes } from "../../src/canvas/toFlowGraph";
+import { useAppStore } from "../../src/state/store";
+
+beforeEach(() => useAppStore.getState().reset());
 
 describe("GraphCanvas", () => {
   it("renders every node of the default four-role loop with its name, type, and status", () => {
@@ -88,5 +92,80 @@ describe("GraphCanvas", () => {
     expect(nodes.every((node) => node.draggable)).toBe(true);
     expect(nodes.every((node) => node.connectable)).toBe(true);
     expect(nodes.every((node) => node.selectable)).toBe(true);
+  });
+
+  it("selects a clicked node so its settings can be inspected", () => {
+    const onSelectNode = vi.fn();
+    render(
+      <GraphCanvas
+        workflow={DEFAULT_WORKFLOW}
+        positions={DEFAULT_NODE_POSITIONS}
+        onSelectNode={onSelectNode}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("canvas-node-execution"));
+
+    expect(onSelectNode).toHaveBeenCalledWith("execution");
+  });
+
+  it("accepts supported library drops and rejects unknown node types", () => {
+    const onDropNode = vi.fn();
+    const { getByTestId } = render(
+      <GraphCanvas
+        workflow={DEFAULT_WORKFLOW}
+        positions={DEFAULT_NODE_POSITIONS}
+        onDropNode={onDropNode}
+      />,
+    );
+    const canvas = getByTestId("graph-canvas");
+
+    fireEvent.drop(canvas, {
+      clientX: 420,
+      clientY: 260,
+      dataTransfer: { getData: () => "Agent" },
+    });
+    expect(onDropNode).toHaveBeenCalledWith(
+      "Agent",
+      expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }),
+    );
+
+    fireEvent.drop(canvas, {
+      clientX: 10,
+      clientY: 10,
+      dataTransfer: { getData: () => "Unknown" },
+    });
+    expect(onDropNode).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows live attempt status and the deterministic validator result", () => {
+    useAppStore.setState({
+      run: {
+        id: "run-1",
+        workflow_id: "default-four-role-loop",
+        objective: "objective",
+        repo_ref: "demo-repo",
+        status: "running",
+        budgets: {
+          max_attempts: 3,
+          max_wall_clock_s: 600,
+          max_model_calls: 20,
+        },
+        current_attempt: 2,
+        cost: { tokens: 0, model_calls: 0, usd: 0 },
+      },
+      runId: "run-1",
+      nodeStatuses: { execution: "running", validation: "failed" },
+      events: [{ seq: 1, type: "verdict", data: { passed: false } }],
+    });
+
+    render(<CanvasArea />);
+
+    expect(screen.getByTestId("canvas-node-execution")).toHaveTextContent(
+      "Attempt 2",
+    );
+    const validator = screen.getByTestId("canvas-node-validator");
+    expect(validator).toHaveAttribute("data-status", "failed");
+    expect(validator).toHaveTextContent("Validation failed");
   });
 });

@@ -26,29 +26,51 @@ export function EvidencePanel({
   runStatus?: string;
   client?: ApiClient;
 }) {
-  const [evidence, setEvidence] = useState<
-    EvidencePayload | EvidenceBundle | null
-  >(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [evidenceState, setEvidenceState] = useState<{
+    runId: string;
+    payload: EvidencePayload | EvidenceBundle | null;
+    error: string | null;
+  }>({ runId: "", payload: null, error: null });
+  const [replayState, setReplayState] = useState<{
+    runId: string;
+    message: string | null;
+    error: string | null;
+    pending: boolean;
+  }>({ runId: "", message: null, error: null, pending: false });
 
   useEffect(() => {
     if (!runId) return;
+    let active = true;
     void client
       .getEvidence(runId)
       .then((payload) => {
-        setEvidence(payload as EvidencePayload | EvidenceBundle);
-        setLoadError(null);
+        if (!active) return;
+        setEvidenceState({
+          runId,
+          payload: payload as EvidencePayload | EvidenceBundle,
+          error: null,
+        });
       })
       .catch(() => {
-        setEvidence(null);
-        setLoadError(
-          "Evidence unavailable. No completed, verified bundle was returned.",
-        );
+        if (!active) return;
+        setEvidenceState({
+          runId,
+          payload: null,
+          error:
+            "Evidence unavailable. No completed, verified bundle was returned.",
+        });
       });
+    return () => {
+      active = false;
+    };
   }, [client, runId, runStatus]);
 
   if (!runId) return null;
+  const evidence = evidenceState.runId === runId ? evidenceState.payload : null;
+  const loadError = evidenceState.runId === runId ? evidenceState.error : null;
+  const message = replayState.runId === runId ? replayState.message : null;
+  const replayError = replayState.runId === runId ? replayState.error : null;
+  const replaying = replayState.runId === runId ? replayState.pending : false;
   if (loadError) {
     return (
       <section className="evidence-panel" aria-label="Validator evidence">
@@ -65,13 +87,35 @@ export function EvidencePanel({
       : evidence.acceptance_hash;
 
   const replay = async () => {
-    const replayed = await client.replayRun(runId);
-    const matched =
-      (replayed as { acceptance_hash?: string }).acceptance_hash ===
-      recordedAcceptanceHash;
-    setMessage(
-      matched ? "Replay matched the recorded verdict." : "Replay mismatch.",
-    );
+    setReplayState({
+      runId,
+      message: null,
+      error: null,
+      pending: true,
+    });
+    try {
+      const replayed = await client.replayRun(runId);
+      const matched =
+        (replayed as { acceptance_hash?: string }).acceptance_hash ===
+        recordedAcceptanceHash;
+      setReplayState({
+        runId,
+        message: matched
+          ? "Replay matched the recorded verdict."
+          : "Replay mismatch.",
+        error: null,
+        pending: false,
+      });
+    } catch (error) {
+      setReplayState({
+        runId,
+        message: null,
+        error: `Replay failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        pending: false,
+      });
+    }
   };
 
   const download = () => {
@@ -106,8 +150,8 @@ export function EvidencePanel({
         <dt>Acceptance hash</dt>
         <dd>{recordedAcceptanceHash}</dd>
       </dl>
-      <button type="button" onClick={() => void replay()}>
-        Replay verdict
+      <button type="button" onClick={() => void replay()} disabled={replaying}>
+        {replaying ? "Replaying verdict…" : "Replay verdict"}
       </button>
       {bundle && (
         <button type="button" onClick={download}>
@@ -115,6 +159,7 @@ export function EvidencePanel({
         </button>
       )}
       {message && <p role="status">{message}</p>}
+      {replayError && <p role="alert">{replayError}</p>}
     </section>
   );
 }

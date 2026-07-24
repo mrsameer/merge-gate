@@ -133,4 +133,86 @@ describe("EvidencePanel", () => {
       screen.queryByRole("button", { name: /download evidence/i }),
     ).not.toBeInTheDocument();
   });
+
+  it("reports a replay mismatch instead of claiming the proof matched", async () => {
+    const replayRun = vi
+      .fn()
+      .mockResolvedValue({ acceptance_hash: "different-hash", passed: true });
+    render(
+      <EvidencePanel
+        runId="run-1"
+        runStatus="SUCCESS"
+        client={
+          {
+            getEvidence: vi.fn().mockResolvedValue(evidence),
+            replayRun,
+          } as unknown as ApiClient
+        }
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /replay verdict/i }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Replay mismatch",
+    );
+    expect(screen.queryByText(/replay matched/i)).not.toBeInTheDocument();
+  });
+
+  it("reports replay failures truthfully without replacing the recorded proof", async () => {
+    const replayRun = vi
+      .fn()
+      .mockRejectedValue(new Error("replay service unavailable"));
+    render(
+      <EvidencePanel
+        runId="run-1"
+        runStatus="SUCCESS"
+        client={
+          {
+            getEvidence: vi.fn().mockResolvedValue(evidence),
+            replayRun,
+          } as unknown as ApiClient
+        }
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /replay verdict/i }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Replay failed: replay service unavailable",
+    );
+    expect(screen.getByText("VALID PROOF")).toBeInTheDocument();
+  });
+
+  it("does not show the previous run's proof while new evidence is loading", async () => {
+    let resolveSecond: ((payload: typeof evidence) => void) | undefined;
+    const getEvidence = vi
+      .fn()
+      .mockResolvedValueOnce(evidence)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+    const client = { getEvidence } as unknown as ApiClient;
+    const { rerender } = render(
+      <EvidencePanel runId="run-1" runStatus="SUCCESS" client={client} />,
+    );
+    expect(await screen.findByText("acceptance-hash")).toBeInTheDocument();
+
+    rerender(
+      <EvidencePanel runId="run-2" runStatus="running" client={client} />,
+    );
+    await waitFor(() => expect(getEvidence).toHaveBeenCalledWith("run-2"));
+
+    expect(screen.queryByText("acceptance-hash")).not.toBeInTheDocument();
+    expect(screen.queryByText("VALID PROOF")).not.toBeInTheDocument();
+
+    resolveSecond?.(evidence);
+  });
 });

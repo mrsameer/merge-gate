@@ -6,7 +6,13 @@
 // EventSource, mirroring tests/unit/sse_client.test.ts.
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  act,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { RunConsole } from "../../src/console/RunConsole";
 import type { ApiClient } from "../../src/api";
 import type { RunEventHandlers } from "../../src/state/sseClient";
@@ -127,6 +133,36 @@ describe("RunConsole", () => {
     expect(screen.getByTestId("retry-reason")).toHaveTextContent("task-tests");
     expect(screen.getByTestId("retry-reason")).toHaveTextContent(
       "pytest tests/test_orders.py -q",
+    );
+  });
+
+  it("shows policy failures with the offending evidence and blocked status", async () => {
+    let captured: RunEventHandlers | undefined;
+    useAppStore.setState({ runId: "run-1" });
+    const connect = vi.fn((_runId: string, handlers: RunEventHandlers) => {
+      captured = handlers;
+      return { close: vi.fn() };
+    });
+
+    render(
+      <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
+    );
+
+    act(() =>
+      captured?.policy_block?.({
+        path: "app/auth/session.py",
+        pattern: "pytest.mark.skip",
+      }),
+    );
+
+    expect(await screen.findByTestId("node-status-policy")).toHaveTextContent(
+      "blocked",
+    );
+    expect(screen.getByTestId("event-log")).toHaveTextContent(
+      "app/auth/session.py",
+    );
+    expect(screen.getByTestId("event-log")).toHaveTextContent(
+      "pytest.mark.skip",
     );
   });
 
@@ -272,5 +308,55 @@ describe("RunConsole", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Ledger unavailable",
     );
+  });
+
+  it("clears the previous run's ledger and selected receipt while the next run loads", async () => {
+    let resolveSecond:
+      | ((entries: Awaited<ReturnType<ApiClient["getLedger"]>>) => void)
+      | undefined;
+    const getLedger = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          seq: 1,
+          run_id: "run-1",
+          ts: "2026-07-24T10:00:00Z",
+          type: "command",
+          payload: { command: "old-run-command" },
+          prev_hash: null,
+          hash: "old-hash",
+        },
+      ])
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+    useAppStore.setState({ runId: "run-1" });
+    render(
+      <RunConsole
+        collapsed={false}
+        onToggle={() => {}}
+        connect={vi.fn(() => ({ close: vi.fn() }))}
+        client={{ getLedger } as unknown as ApiClient}
+      />,
+    );
+
+    fireEvent.click(await screen.findByTestId("ledger-event-1"));
+    expect(screen.getByTestId("ledger-inspector")).toHaveTextContent(
+      "old-run-command",
+    );
+
+    act(() => useAppStore.setState({ runId: "run-2" }));
+    await waitFor(() => expect(getLedger).toHaveBeenCalledWith("run-2"));
+
+    expect(screen.queryByText("old-run-command")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("ledger-event-1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("ledger-inspector")).toHaveTextContent(
+      "Select a ledger event",
+    );
+
+    resolveSecond?.([]);
   });
 });

@@ -67,13 +67,34 @@ export function connectWorkflowNodes(
 ): Workflow {
   if (source === target) return workflow;
   const sourceNode = workflow.nodes.find((node) => node.id === source);
+  if (!sourceNode) return workflow;
+
+  const configKey =
+    path === "success"
+      ? "success_path"
+      : path === "failure"
+        ? "failure_path"
+        : null;
+  const edgesWithoutPath = workflow.edges.filter(
+    (edge) => !(edge.source === source && edge.path === path),
+  );
+
+  if (!target) {
+    const nodes = configKey
+      ? workflow.nodes.map((node) =>
+          node.id === source
+            ? { ...node, config: { ...node.config, [configKey]: "" } }
+            : node,
+        )
+      : workflow.nodes;
+    return { ...workflow, nodes, edges: edgesWithoutPath };
+  }
+
   const targetNode = workflow.nodes.find((node) => node.id === target);
-  if (!sourceNode || !targetNode) return workflow;
+  if (!targetNode) return workflow;
 
   const edges = [
-    ...workflow.edges.filter(
-      (edge) => !(edge.source === source && edge.path === path),
-    ),
+    ...edgesWithoutPath,
     {
       id: `edge-${source}-${path}-${target}`,
       source,
@@ -81,12 +102,6 @@ export function connectWorkflowNodes(
       path,
     },
   ];
-  const configKey =
-    path === "success"
-      ? "success_path"
-      : path === "failure"
-        ? "failure_path"
-        : null;
   const nodes = configKey
     ? workflow.nodes.map((node) =>
         node.id === source
