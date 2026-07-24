@@ -13,8 +13,11 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from mergegate.harness.aider import AiderHarnessAdapter
 from mergegate.harness.anthropic import AnthropicHarnessAdapter
 from mergegate.harness.base import HarnessAdapter
+from mergegate.harness.claude_agent_sdk import ClaudeAgentSDKHarnessAdapter
+from mergegate.harness.codex import CodexHarnessAdapter
 from mergegate.harness.cursor import CursorAdapter
 from mergegate.harness.gemini import GeminiHarnessAdapter
 from mergegate.harness.scripted import ScriptedHarnessAdapter
@@ -22,6 +25,9 @@ from mergegate.harness.scripted import ScriptedHarnessAdapter
 # Provider name -> adapter factory. Factories accept keyword args so callers
 # can pass provider-specific configuration (model, api_key, changes, ...).
 ADAPTER_FACTORIES: Mapping[str, Callable[..., HarnessAdapter]] = {
+    "aider": AiderHarnessAdapter,
+    "claude-agent-sdk": ClaudeAgentSDKHarnessAdapter,
+    "codex": CodexHarnessAdapter,
     "cursor": CursorAdapter,
     "gemini": GeminiHarnessAdapter,
     "anthropic": AnthropicHarnessAdapter,
