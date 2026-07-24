@@ -1,0 +1,21 @@
+[project]
+name = "demo-repo"
+version = "0.1.0"
+description = "Self-contained FastAPI order service: the MergeGate target task fixture"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.139.2",
+    "uvicorn>=0.51.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.3.5",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
