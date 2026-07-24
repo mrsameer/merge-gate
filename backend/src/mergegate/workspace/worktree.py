@@ -71,6 +71,18 @@ class Worktree:
     base_repo: Path
     base_commit: str
     allowed_commands: frozenset[str] = field(default=DEFAULT_ALLOWED_COMMANDS)
+    project_path: Path | None = None
+
+    @property
+    def working_dir(self) -> Path:
+        """Directory where the harness edits and runs commands.
+
+        ``path`` remains the git worktree root so diff capture and teardown
+        operate on the complete checkout. ``project_path`` narrows a harness
+        to the run's selected project when that project is nested in a larger
+        repository.
+        """
+        return self.project_path or self.path
 
 
 @dataclass(frozen=True)

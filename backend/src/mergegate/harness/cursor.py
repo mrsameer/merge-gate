@@ -124,7 +124,7 @@ class CursorAdapter(HarnessAdapter):
 
         result = run_command(
             argv,
-            cwd=workspace.path,
+            cwd=workspace.working_dir,
             extra_env={API_KEY_ENV_VAR: api_key},
             timeout_s=self._timeout_s,
         )

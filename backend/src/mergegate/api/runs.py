@@ -67,6 +67,7 @@ from mergegate.orchestrator import gates, runner
 from mergegate.orchestrator.default_workflow import build_default_workflow
 from mergegate.orchestrator.demo import demo_idempotency_changes, is_demo_repo
 from mergegate.orchestrator.nodes import RunContext, drive_run
+from mergegate.workspace.worktree import Worktree, discard_worktree
 
 router = APIRouter()
 
@@ -540,8 +541,7 @@ def start_run(run_id: str) -> JSONResponse:
 
     adapter_kwargs: dict = {}
     if provider == "scripted":
-        prefix = subdir if subdir != "." else ""
-        adapter_kwargs = {"changes": demo_idempotency_changes(prefix=prefix)}
+        adapter_kwargs = {"changes": demo_idempotency_changes()}
     elif provider in {"anthropic", "claude-agent-sdk", "gemini", "aider", "codex"}:
         adapter_kwargs = {"model": selection.model}
         if provider == "anthropic":
@@ -620,14 +620,25 @@ def resume_run(run_id: str) -> JSONResponse:
 
 @router.post("/runs/{run_id}:stop")
 def stop_run(run_id: str) -> JSONResponse:
-    """Cancel a non-terminal run; it can never later become successful."""
+    """Cancel a non-terminal run and discard an unmerged final attempt."""
     record = _require_record(run_id)
     from mergegate.orchestrator import runner
 
+    was_awaiting_gate = record.run.status == RunStatus.AWAITING_GATE
     try:
         runner.transition(record.run, RunStatus.CANCELLED)
     except runner.InvalidTransition as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if was_awaiting_gate and record.run.attempts:
+        attempt = record.run.attempts[-1]
+        discard_worktree(
+            Worktree(
+                path=Path(attempt.worktree_path),
+                branch=attempt.branch,
+                base_repo=Path(record.run.repo_ref),
+                base_commit="",
+            )
+        )
     terminal_payload = {
         "status": RunStatus.CANCELLED.value,
         "reason": "stopped by operator",

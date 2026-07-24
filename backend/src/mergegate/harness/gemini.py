@@ -211,7 +211,7 @@ class GeminiHarnessAdapter(HarnessAdapter):
                 extra_env[GEMINI_API_KEY_ENV_VAR] = self._api_key
             result = run_command(
                 argv,
-                cwd=workspace.path,
+                cwd=workspace.working_dir,
                 extra_env=extra_env,
                 timeout_s=self._timeout_s,
             )

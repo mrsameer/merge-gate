@@ -84,7 +84,7 @@ class ScriptedHarnessAdapter(HarnessAdapter):
         try:
             result = run_command(
                 ["git", "apply", "--whitespace=nowarn", patch_path],
-                cwd=workspace.path,
+                cwd=workspace.working_dir,
             )
         finally:
             Path(patch_path).unlink(missing_ok=True)
@@ -98,7 +98,7 @@ class ScriptedHarnessAdapter(HarnessAdapter):
         """Write each relative path -> contents into the worktree, raising on error."""
         try:
             for relative_path, contents in files.items():
-                target = workspace.path / relative_path
+                target = workspace.working_dir / relative_path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_text(contents, encoding="utf-8")
         except OSError as exc:

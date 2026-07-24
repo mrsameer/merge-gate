@@ -29,7 +29,7 @@ from __future__ import annotations
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from uuid import uuid4
 
@@ -217,6 +217,12 @@ def run_execution_node(
         ctx.repo_ref, branch=branch, worktrees_root=ctx.worktrees_root
     )
     try:
+        project_path = _accept_dir(worktree, ctx.workspace_subdir)
+        if not project_path.is_dir():
+            raise HarnessError(
+                f"target project directory does not exist: {project_path}"
+            )
+        worktree = replace(worktree, project_path=project_path)
         adapter = get_adapter(ctx.provider, **ctx.adapter_kwargs)
         started = ctx.now()
         result = adapter.propose_changes(ctx.run.objective, feedback, worktree)

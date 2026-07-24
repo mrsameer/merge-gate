@@ -377,6 +377,23 @@ describe("InspectorPanel", () => {
     expect(useAppStore.getState().run?.status).toBe("SUCCESS");
   });
 
+  it("cancels and discards an unmerged run before starting over", async () => {
+    const stopRun = vi.fn().mockResolvedValue(makeRun({ status: "CANCELLED" }));
+    useAppStore.setState({
+      selectedNodeId: "input",
+      runId: "run-1",
+      run: makeRun({ status: "awaiting_gate", current_attempt: 1 }),
+      contract: makeContract({ approved: true }),
+    });
+    render(<InspectorPanel client={{ stopRun } as unknown as ApiClient} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /new run/i }));
+
+    await waitFor(() => expect(stopRun).toHaveBeenCalledWith("run-1"));
+    expect(useAppStore.getState().runId).toBeNull();
+    expect(useAppStore.getState().run).toBeNull();
+  });
+
   it("surfaces an api error message", async () => {
     const createRun = vi.fn().mockRejectedValue(new Error("boom"));
     const client = { createRun } as unknown as ApiClient;

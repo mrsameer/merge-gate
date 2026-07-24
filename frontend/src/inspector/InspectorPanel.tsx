@@ -416,6 +416,19 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
       setRun(await client.decideGate(runId, "final", "approve"));
     });
 
+  const handleNewRun = () =>
+    guard(async () => {
+      if (
+        runId &&
+        run &&
+        ["running", "paused", "awaiting_gate"].includes(run.status)
+      ) {
+        await client.stopRun(runId);
+      }
+      setNotice(null);
+      resetRun();
+    });
+
   const handleResetRepo = () =>
     guard(async () => {
       setNotice(null);
@@ -588,11 +601,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
       {runId && (
         <button
           type="button"
-          onClick={() => {
-            setError(null);
-            setNotice(null);
-            resetRun();
-          }}
+          onClick={handleNewRun}
           disabled={busy}
         >
           New run

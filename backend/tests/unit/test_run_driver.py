@@ -33,7 +33,7 @@ from mergegate.models import (
 from mergegate.models.attempt import StructuredFeedback
 from mergegate.orchestrator import nodes
 from mergegate.orchestrator.nodes import RunContext, drive_run
-from mergegate.workspace.worktree import Worktree, capture_diff
+from mergegate.workspace.worktree import Worktree, capture_diff, discard_worktree
 
 PY = sys.executable
 
@@ -55,6 +55,7 @@ class FakeAdapter(HarnessAdapter):
         self._model_calls = model_calls
         self._usd = usd
         self._fail = fail
+        self.workspaces: list[Worktree] = []
 
     def propose_changes(
         self,
@@ -64,8 +65,9 @@ class FakeAdapter(HarnessAdapter):
     ) -> HarnessResult:
         if self._fail:
             raise HarnessError("fake harness could not run")
+        self.workspaces.append(workspace)
         for relative_path, contents in self._files.items():
-            target = workspace.path / relative_path
+            target = workspace.working_dir / relative_path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(contents)
         diff = capture_diff(workspace)
@@ -194,6 +196,35 @@ def test_passing_attempt_reaches_gate_with_verdict_and_cost(
     assert run.cost.model_calls == 1
     assert run.cost.tokens == 100
     assert run.cost.usd == 0.5
+
+
+def test_execution_runs_harness_inside_nested_target_project(
+    git_repo: Path, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    project = git_repo / "demo-repo"
+    project.mkdir()
+    (project / "seed.txt").write_text("seed\n")
+    run_command(["git", "add", "-A"], cwd=git_repo)
+    run_command(["git", "commit", "-m", "add nested project"], cwd=git_repo)
+
+    adapter = FakeAdapter({"feature.txt": "done\n"})
+    _patch_adapter(monkeypatch, adapter)
+    run = _make_run(Budget(max_attempts=1, max_wall_clock_s=300, max_model_calls=20))
+    context = RunContext(
+        run=run,
+        contract=_contract(f'"{PY}" -c "pass"'),
+        provider="fake",
+        repo_ref=str(project),
+        workspace_subdir="demo-repo",
+        worktrees_root=tmp_path / "worktrees",
+    )
+
+    attempt, worktree = nodes.run_execution_node(context, 1, None)
+    try:
+        assert adapter.workspaces[-1].working_dir == worktree.path / "demo-repo"
+        assert attempt.changed_files == ["demo-repo/feature.txt"]
+    finally:
+        discard_worktree(worktree)
 
 
 def test_identical_failing_attempts_stop_as_no_progress(

@@ -225,7 +225,7 @@ class AnthropicHarnessAdapter(HarnessAdapter):
 
         prompt = _build_prompt(objective, feedback)
         options = ClaudeAgentOptions(
-            cwd=str(workspace.path),
+            cwd=str(workspace.working_dir),
             permission_mode=self._permission_mode,
             model=self._model,
             env=_credential_env(credential),
