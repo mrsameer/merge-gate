@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { connectRunEvents } from "../state/sseClient";
 import type { RunEventHandlers, RunEventsClient } from "../state/sseClient";
 import { useAppStore } from "../state/store";
+import type { RunStatus } from "../api";
 import "./RunConsole.css";
 
 type ConnectFn = (runId: string, handlers: RunEventHandlers) => RunEventsClient;
@@ -31,6 +32,7 @@ export function RunConsole({
   const nodeStatuses = useAppStore((s) => s.nodeStatuses);
   const appendEvent = useAppStore((s) => s.appendEvent);
   const applyNodeStatus = useAppStore((s) => s.applyNodeStatus);
+  const setRunStatus = useAppStore((s) => s.setRunStatus);
   const retry = useAppStore((s) => s.retry);
   const setRetry = useAppStore((s) => s.setRetry);
   const clarification = useAppStore((s) => s.clarification);
@@ -44,8 +46,10 @@ export function RunConsole({
 
     const handlers: RunEventHandlers = {
       node_status: (data) => {
-        const payload = data as { node?: string };
-        if (payload.node) applyNodeStatus(payload.node, "running");
+        const payload = data as { node?: string; status?: string };
+        if (payload.node) {
+          applyNodeStatus(payload.node, payload.status ?? "running");
+        }
         record("node_status")(data);
       },
       verdict: (data) => {
@@ -73,10 +77,13 @@ export function RunConsole({
       },
       harness_output: record("harness_output"),
       command_result: record("command_result"),
-      policy_block: record("policy_block"),
+      policy_block: (data) => {
+        applyNodeStatus("policy", "blocked");
+        record("policy_block")(data);
+      },
       terminal: (data) => {
         const payload = data as {
-          status?: string;
+          status?: RunStatus;
           clarification?: {
             reason: string;
             conflicting_criteria: string[];
@@ -90,6 +97,7 @@ export function RunConsole({
           applyNodeStatus("execution", "skipped");
           applyNodeStatus("validation", "skipped");
         }
+        if (payload.status) setRunStatus(payload.status);
         record("terminal")(data);
       },
     };
@@ -103,6 +111,7 @@ export function RunConsole({
     applyNodeStatus,
     setRetry,
     setClarification,
+    setRunStatus,
   ]);
 
   const statuses = Object.entries(nodeStatuses);

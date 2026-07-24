@@ -31,8 +31,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from mergegate.acceptance.evaluators import EVALUATOR_REGISTRY, Evaluator
+from mergegate.acceptance.policy import check_policy
 from mergegate.models.contract import Contract, Criterion
 from mergegate.models.enums import CheckStep
+from mergegate.models.policy import Policy, PolicyResult
 from mergegate.models.verdict import CheckResult
 
 # The pipeline order the engine walks. `POLICY` is excluded on purpose — see
@@ -85,6 +87,12 @@ class AcceptanceEngine:
         default_factory=lambda: dict(EVALUATOR_REGISTRY)
     )
     fail_fast: bool = True
+
+    def check_policy(
+        self, policy: Policy, *, changed_files: list[str], diff: str
+    ) -> PolicyResult:
+        """Evaluate anti-cheat policy before any acceptance verdict is computed."""
+        return check_policy(policy, changed_files=changed_files, diff=diff)
 
     def run(self, contract: Contract, workspace: str) -> list[CheckResult]:
         """Run `contract.criteria` through the ordered pipeline at `workspace`.

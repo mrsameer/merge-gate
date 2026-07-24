@@ -10,6 +10,7 @@ import type {
   ContractMode,
   Criterion,
   LedgerEntry,
+  Policy,
   Run,
   Verdict,
   Workflow,
@@ -112,6 +113,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       repo_ref: string;
       provider?: string;
       model?: string;
+      policy?: Policy;
       budgets: Budget;
     }) => call<Run>("/runs", { method: "POST", body: JSON.stringify(body) }),
 

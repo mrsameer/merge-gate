@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from mergegate.models.attempt import Attempt
 from mergegate.models.budget import Budget, CostAccounting
 from mergegate.models.enums import RunStatus
+from mergegate.models.policy import Policy
 
 
 class ClarificationRequest(BaseModel):
@@ -25,6 +26,7 @@ class Run(BaseModel):
     repo_ref: str
     provider: str | None = None
     model: str | None = None
+    policy: Policy = Field(default_factory=Policy)
     status: RunStatus
     budgets: Budget
     attempts: list[Attempt] = Field(default_factory=list)

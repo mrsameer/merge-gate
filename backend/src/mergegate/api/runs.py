@@ -30,7 +30,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from mergegate.acceptance.commands import run_command
 from mergegate.acceptance.replay import replay_verdict
@@ -50,6 +50,7 @@ from mergegate.models import (
     Contract,
     CostAccounting,
     Criterion,
+    Policy,
     Run,
     RunStatus,
 )
@@ -108,6 +109,16 @@ class CreateRunRequest(BaseModel):
     repo_ref: str
     provider: str | None = None
     model: str | None = None
+    policy: Policy = Field(
+        default_factory=lambda: Policy(
+            protected_paths=["app/auth/**", "tests/acceptance/**"],
+            forbidden_diff_patterns=[
+                "pytest.mark.skip",
+                "eslint-disable",
+                "assert True",
+            ],
+        )
+    )
     budgets: Budget
 
 
@@ -237,6 +248,7 @@ def create_run(request: CreateRunRequest) -> JSONResponse:
         repo_ref=_resolve_repo_ref(request.repo_ref),
         provider=request.provider,
         model=request.model,
+        policy=request.policy,
         status=RunStatus.AWAITING_GATE,
         budgets=request.budgets,
         current_attempt=0,
@@ -390,6 +402,7 @@ def start_run(run_id: str) -> JSONResponse:
     context = RunContext(
         run=run,
         contract=record.contract,
+        policy=run.policy,
         provider=provider,
         repo_ref=run.repo_ref,
         workspace_subdir=subdir,

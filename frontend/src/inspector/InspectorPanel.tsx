@@ -39,9 +39,62 @@ export function InspectorPanel({
       aria-label="Node inspector"
     >
       {!node && <p>Select a node to inspect its settings.</p>}
-      {node && node.type !== "Input" && <NodeDetails node={node} />}
+      {node && node.type !== "Input" && (
+        <>
+          <NodeDetails node={node} />
+          {node.type === "Validator" && <PolicyEditor />}
+        </>
+      )}
       {node && node.type === "Input" && <InputNodeInspector client={client} />}
     </aside>
+  );
+}
+
+function PolicyEditor() {
+  const policy = useAppStore((s) => s.policy);
+  const setPolicy = useAppStore((s) => s.setPolicy);
+
+  const parseLines = (value: string) =>
+    value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+  return (
+    <div className="inspector-section" data-testid="policy-editor">
+      <h2>Policy guardrails</h2>
+      <p className="inspector-notice">
+        Checked against every attempt before an acceptance verdict.
+      </p>
+      <label className="inspector-field">
+        <span>Protected paths</span>
+        <textarea
+          aria-label="Protected paths"
+          rows={4}
+          value={policy.protected_paths.join("\n")}
+          onChange={(event) =>
+            setPolicy({
+              ...policy,
+              protected_paths: parseLines(event.target.value),
+            })
+          }
+        />
+      </label>
+      <label className="inspector-field">
+        <span>Forbidden diff patterns</span>
+        <textarea
+          aria-label="Forbidden diff patterns"
+          rows={4}
+          value={policy.forbidden_diff_patterns.join("\n")}
+          onChange={(event) =>
+            setPolicy({
+              ...policy,
+              forbidden_diff_patterns: parseLines(event.target.value),
+            })
+          }
+        />
+      </label>
+    </div>
   );
 }
 
@@ -69,6 +122,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
   const setContract = useAppStore((s) => s.setContract);
   const setCriteria = useAppStore((s) => s.setCriteria);
   const setClarification = useAppStore((s) => s.setClarification);
+  const policy = useAppStore((s) => s.policy);
 
   const [repoRef, setRepoRef] = useState(DEFAULT_REPO_REF);
   const [provider, setProvider] = useState("scripted");
@@ -97,6 +151,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
         repo_ref: repoRef,
         provider,
         ...(model.trim() ? { model: model.trim() } : {}),
+        policy,
         budgets: DEFAULT_BUDGETS,
       });
       setRun(created);

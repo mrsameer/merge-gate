@@ -13,7 +13,7 @@ from mergegate.models.enums import (
     PassFail,
     RunStatus,
 )
-from mergegate.models.policy import Policy
+from mergegate.models.policy import Policy, PolicyResult, PolicyViolation
 from mergegate.models.run import ClarificationRequest, Run
 from mergegate.models.verdict import CheckResult, Verdict
 from mergegate.models.workflow import Edge, Node, NodeConfig, Workflow, WorkflowBudgets
@@ -37,6 +37,8 @@ __all__ = [
     "NodeType",
     "PassFail",
     "Policy",
+    "PolicyResult",
+    "PolicyViolation",
     "Run",
     "RunStatus",
     "StructuredFeedback",

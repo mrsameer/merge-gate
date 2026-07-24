@@ -64,6 +64,11 @@ export interface CostAccounting {
   usd: number;
 }
 
+export interface Policy {
+  protected_paths: string[];
+  forbidden_diff_patterns: string[];
+}
+
 export type RunStatus =
   | "running"
   | "paused"
@@ -84,6 +89,7 @@ export interface Run {
   repo_ref: string;
   provider?: string | null;
   model?: string | null;
+  policy?: Policy;
   status: RunStatus;
   budgets: Budget;
   current_attempt: number;

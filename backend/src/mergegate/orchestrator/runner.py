@@ -26,6 +26,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 from mergegate.criteria.consistency import ConsistencyIssue
 from mergegate.models import ClarificationRequest, Run, RunStatus, Workflow
+from mergegate.models.policy import PolicyViolation
 from mergegate.orchestrator.graph import GraphState, build_graph
 
 _NON_TERMINAL = frozenset(
@@ -103,6 +104,18 @@ def require_clarification(
             }
         )
     return clarification
+
+
+def block_for_policy(run: Run, violation: PolicyViolation) -> dict:
+    """Move a run to ``POLICY_BLOCKED`` and return truthful event evidence."""
+    transition(run, RunStatus.POLICY_BLOCKED)
+    return {
+        "kind": violation.kind,
+        "path_or_pattern": violation.offender,
+        "rule": violation.rule,
+        "path": violation.path,
+        "message": violation.message,
+    }
 
 
 class Runner:
