@@ -4,17 +4,22 @@ from mergegate.models.attempt import Attempt, StructuredFeedback
 from mergegate.models.budget import Budget, CostAccounting
 from mergegate.models.contract import Contract, Criterion
 from mergegate.models.enums import (
+    AgentRole,
     CheckStep,
     ContractMode,
     CriterionType,
+    EdgePath,
+    NodeType,
     PassFail,
     RunStatus,
 )
 from mergegate.models.policy import Policy
 from mergegate.models.run import Run
 from mergegate.models.verdict import CheckResult, Verdict
+from mergegate.models.workflow import Edge, Node, NodeConfig, Workflow, WorkflowBudgets
 
 __all__ = [
+    "AgentRole",
     "Attempt",
     "Budget",
     "CheckResult",
@@ -24,10 +29,17 @@ __all__ = [
     "CostAccounting",
     "Criterion",
     "CriterionType",
+    "Edge",
+    "EdgePath",
+    "Node",
+    "NodeConfig",
+    "NodeType",
     "PassFail",
     "Policy",
     "Run",
     "RunStatus",
     "StructuredFeedback",
     "Verdict",
+    "Workflow",
+    "WorkflowBudgets",
 ]

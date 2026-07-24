@@ -62,3 +62,33 @@ class CheckStep(StrEnum):
     COVERAGE = "coverage"
     API_CONTRACT = "api_contract"
     POLICY = "policy"
+
+
+class NodeType(StrEnum):
+    """Workflow node kinds (FR-026a); values match `workflow.schema.json`."""
+
+    INPUT = "Input"
+    AGENT = "Agent"
+    COMMAND = "Command"
+    VALIDATOR = "Validator"
+    DECISION = "Decision"
+    HUMAN_GATE = "HumanGate"
+    SUCCESS = "Success"
+    STOP = "Stop"
+
+
+class AgentRole(StrEnum):
+    """One of the four default-loop roles a node's config may declare."""
+
+    SUCCESS_CRITERIA = "success_criteria"
+    PLANNING = "planning"
+    EXECUTION = "execution"
+    VALIDATION = "validation"
+
+
+class EdgePath(StrEnum):
+    """Edge path label (FR-026a)."""
+
+    DEFAULT = "default"
+    SUCCESS = "success"
+    FAILURE = "failure"
