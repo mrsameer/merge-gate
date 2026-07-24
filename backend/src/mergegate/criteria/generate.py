@@ -7,7 +7,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from mergegate.models import Contract, Criterion, CriterionType
+from mergegate.models import Contract, ContractMode, Criterion, CriterionType
 
 _IGNORED_DIRECTORIES = {
     ".git",
@@ -63,7 +63,9 @@ def map_repository(repo_path: str | Path) -> RepositoryMap:
     for path in sorted(root.rglob("*")):
         if len(mapped_files) >= _MAX_FILES:
             break
-        if not path.is_file() or any(part in _IGNORED_DIRECTORIES for part in path.parts):
+        if not path.is_file() or any(
+            part in _IGNORED_DIRECTORIES for part in path.parts
+        ):
             continue
         try:
             if path.stat().st_size > _MAX_FILE_SIZE_BYTES:
@@ -96,7 +98,9 @@ def generate_hybrid_contract(
 
     source_paths = repo_map.paths_for("source")
     if not source_paths:
-        raise RepositoryMappingError("cannot generate grounded criteria without source files")
+        raise RepositoryMappingError(
+            "cannot generate grounded criteria without source files"
+        )
 
     criteria: list[Criterion] = [
         Criterion(
@@ -104,7 +108,7 @@ def generate_hybrid_contract(
             type=CriterionType.ARCHITECTURE,
             priority=1,
             description=f"Implement the requested behavior: {objective.strip()}",
-            source_paths=(source_paths[0],),
+            source_paths=[source_paths[0]],
         )
     ]
 
@@ -117,7 +121,7 @@ def generate_hybrid_contract(
                     type=CriterionType.COMMAND,
                     priority=2,
                     description="Existing repository tests pass.",
-                    source_paths=test_paths,
+                    source_paths=list(test_paths),
                     command="pytest",
                     expected_exit_code=0,
                 ),
@@ -126,7 +130,7 @@ def generate_hybrid_contract(
                     type=CriterionType.COMMAND,
                     priority=3,
                     description="Task-specific tests are added and pass.",
-                    source_paths=test_paths,
+                    source_paths=list(test_paths),
                     command="pytest",
                     expected_exit_code=0,
                 ),
@@ -142,22 +146,25 @@ def generate_hybrid_contract(
                     type=CriterionType.OPENAPI,
                     priority=4,
                     description="POST /orders requires an Idempotency-Key header.",
-                    source_paths=(order_sources[0],),
+                    source_paths=[order_sources[0]],
                     params={"route": "/orders", "required_header": "Idempotency-Key"},
                 ),
                 Criterion(
                     id="idempotent-order-reuse",
                     type=CriterionType.DATABASE_ASSERTION,
                     priority=5,
-                    description="The same key and body return the original order without another row.",
-                    source_paths=(order_sources[0],),
+                    description=(
+                        "The same key and body return the original order "
+                        "without another row."
+                    ),
+                    source_paths=[order_sources[0]],
                 ),
                 Criterion(
                     id="idempotency-key-conflict",
                     type=CriterionType.OPENAPI,
                     priority=6,
                     description="The same key with a different body returns HTTP 409.",
-                    source_paths=(order_sources[0],),
+                    source_paths=[order_sources[0]],
                     params={"route": "/orders", "status_code": 409},
                 ),
             )
@@ -166,8 +173,8 @@ def generate_hybrid_contract(
     return Contract(
         id=contract_id,
         run_id=run_id,
-        mode="hybrid",
-        criteria=tuple(criteria),
+        mode=ContractMode.HYBRID,
+        criteria=criteria,
     )
 
 
