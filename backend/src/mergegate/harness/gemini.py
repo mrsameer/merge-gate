@@ -11,6 +11,7 @@ this adapter intentionally does not handle OAuth tokens itself.
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import threading
 import time
@@ -71,8 +72,28 @@ class RequestThrottle:
 _REQUEST_THROTTLE = RequestThrottle()
 
 
+def _resolve_executable(name: str) -> str:
+    """Resolve a bare executable name to its full path via PATHEXT.
+
+    On Windows the Gemini CLI is installed as ``gemini.cmd``; a bare
+    ``gemini`` passed to ``subprocess`` (shell=False) is not found because
+    CreateProcess does not consult PATHEXT. ``shutil.which`` does, so this
+    turns ``gemini`` into the real ``...\\gemini.CMD`` path. A name that is
+    already a path, or that ``which`` cannot resolve, is returned unchanged so
+    the existing "not found on PATH" error still surfaces.
+    """
+    if "/" in name or "\\" in name:
+        return name
+    return shutil.which(name) or name
+
+
 def _as_argv(executable: str | Sequence[str]) -> list[str]:
-    return [executable] if isinstance(executable, str) else list(executable)
+    if isinstance(executable, str):
+        return [_resolve_executable(executable)]
+    argv = list(executable)
+    if argv:
+        argv[0] = _resolve_executable(argv[0])
+    return argv
 
 
 def _build_prompt(objective: str, feedback: StructuredFeedback | None) -> str:

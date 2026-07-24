@@ -10,7 +10,9 @@ land.
 from __future__ import annotations
 
 from http import HTTPStatus
+from pathlib import Path
 
+from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.requests import Request
@@ -21,7 +23,15 @@ from mergegate.api.events import router as events_router
 from mergegate.api.runs import router as runs_router
 from mergegate.api.workflows import router as workflows_router
 
-app = FastAPI(title="MergeGate Control Plane")
+# Load backend/.env (provider API keys, MERGEGATE_* config) before the app
+# handles any request, so a local .env behaves like real process env vars
+# without requiring the shell that launches uvicorn to set them itself.
+# override=False: real environment variables always win over the .env file.
+# Safe to do after the imports above — they only read os.environ lazily,
+# inside request handlers, never at import time.
+load_dotenv(Path(__file__).resolve().parents[3] / ".env", override=False)
+
+app = FastAPI(title="The Talent Hack ------- Autonmous AI Coding Agent.")
 
 api_router = APIRouter(prefix="/api")
 
