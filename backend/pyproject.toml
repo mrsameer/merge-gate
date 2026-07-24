@@ -27,21 +27,17 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-<<<<<<< HEAD
-    "pytest>=8.3.0",
-    "httpx>=0.28.0",
     "anyio>=4.6.0",
+    "httpx>=0.28.0",
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "ruff>=0.16.0",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
 addopts = "-ra"
-=======
-    "pyright>=1.1.411",
-    "pytest>=9.1.1",
-    "ruff>=0.16.0",
-]
 
 [tool.ruff]
 line-length = 88
@@ -54,4 +50,3 @@ select = ["E", "F", "I", "UP"]
 include = ["src", "tests"]
 pythonVersion = "3.11"
 typeCheckingMode = "basic"
->>>>>>> a69348193cfe50450b30d16ce195f0372c27e066
