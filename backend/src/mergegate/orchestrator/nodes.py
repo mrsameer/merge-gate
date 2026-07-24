@@ -37,6 +37,7 @@ from mergegate.acceptance.baseline import run_baseline_checks
 from mergegate.acceptance.commands import run_command
 from mergegate.acceptance.engine import AcceptanceEngine
 from mergegate.acceptance.evidence import build_red_green_evidence
+from mergegate.acceptance.feedback import build_failure_feedback
 from mergegate.acceptance.verdict import compute_verdict
 from mergegate.harness.base import HarnessError
 from mergegate.harness.registry import get_adapter
@@ -53,6 +54,9 @@ from mergegate.models import (
 )
 from mergegate.orchestrator import cost as cost_accounting
 from mergegate.orchestrator import runner
+from mergegate.orchestrator.budgets import BudgetGuard, budget_reason
+from mergegate.orchestrator.no_progress import NoProgressDetector
+from mergegate.workspace.rollback import rollback_run
 from mergegate.workspace.worktree import Worktree, create_worktree, discard_worktree
 
 EventSink = Callable[[str, dict], None]
@@ -201,36 +205,45 @@ def run_validation_node(
     return verdict
 
 
-def _build_feedback(attempt: Attempt, index: int) -> StructuredFeedback:
+def _build_feedback(
+    contract: Contract, attempt: Attempt, index: int
+) -> StructuredFeedback:
     """Turn the first failing check into structured feedback for the next plan."""
     verdict = attempt.verdict
-    failed = None
-    if verdict is not None:
-        failed = next((check for check in verdict.checks if not check.passed), None)
-    if failed is None:
-        return StructuredFeedback(
-            criterion="",
-            command="",
-            exit_code=1,
-            failure_signature="no failing check recorded",
-            attempt=index,
-        )
-    signature = (failed.stderr or failed.stdout or "").strip()
-    return StructuredFeedback(
-        criterion=failed.criterion_id,
-        command=failed.criterion_id,
-        exit_code=failed.exit_code,
-        failure_signature=signature[:500] or f"check {failed.criterion_id} failed",
-        first_failing_location=None,
-        attempt=index,
-    )
+    checks = verdict.checks if verdict is not None else []
+    commands = {
+        criterion.id: criterion.command or criterion.id
+        for criterion in contract.criteria
+    }
+    return build_failure_feedback(checks, commands=commands, attempt=index)
 
 
-def _terminate(ctx: RunContext, status: RunStatus) -> None:
+def _terminate(
+    ctx: RunContext,
+    status: RunStatus,
+    *,
+    reason: str,
+    active_worktree: Worktree | None = None,
+    baseline_status: str | None = None,
+) -> None:
     """Move the run to a terminal state (once), emitting a terminal event."""
     if not runner.is_terminal(ctx.run.status):
         runner.transition(ctx.run, status)
-    _emit(ctx, "terminal", {"status": ctx.run.status.value})
+    report = rollback_run(
+        ctx.run,
+        active_worktree=active_worktree,
+        reason=reason,
+        baseline_status=baseline_status,
+    )
+    _emit(
+        ctx,
+        "terminal",
+        {
+            "status": ctx.run.status.value,
+            "reason": reason,
+            "undelivered_report": report,
+        },
+    )
 
 
 def drive_run(ctx: RunContext) -> None:
@@ -244,18 +257,38 @@ def drive_run(ctx: RunContext) -> None:
     run = ctx.run
     budgets = run.budgets
     feedback: StructuredFeedback | None = None
-    deadline = ctx.now() + budgets.max_wall_clock_s
+    guard = BudgetGuard(
+        max_attempts=budgets.max_attempts,
+        max_wall_clock_s=budgets.max_wall_clock_s,
+        max_model_calls=budgets.max_model_calls,
+        now=ctx.now,
+    )
+    guard.start()
+    detector = NoProgressDetector()
+    active_worktree: Worktree | None = None
+    baseline_status = run_command(
+        ["git", "status", "--porcelain"], cwd=ctx.repo_ref
+    ).stdout
 
     try:
         while True:
-            if budgets.max_wall_clock_s <= 0 or ctx.now() >= deadline:
-                _terminate(ctx, RunStatus.TIMED_OUT)
-                return
-            if run.current_attempt >= budgets.max_attempts:
-                _terminate(ctx, RunStatus.EXHAUSTED)
-                return
-            if run.cost.model_calls >= budgets.max_model_calls:
-                _terminate(ctx, RunStatus.EXHAUSTED)
+            exhausted = guard.terminal_status(
+                attempts=run.current_attempt, model_calls=run.cost.model_calls
+            )
+            if exhausted is not None:
+                _terminate(
+                    ctx,
+                    exhausted,
+                    reason=budget_reason(
+                        exhausted,
+                        attempts=run.current_attempt,
+                        model_calls=run.cost.model_calls,
+                        max_attempts=budgets.max_attempts,
+                        max_model_calls=budgets.max_model_calls,
+                    ),
+                    active_worktree=active_worktree,
+                    baseline_status=baseline_status,
+                )
                 return
 
             index = run.current_attempt + 1
@@ -265,13 +298,23 @@ def drive_run(ctx: RunContext) -> None:
                     ctx.contract, ctx.repo_ref, ctx.engine
                 )
             except ValueError:
-                _terminate(ctx, RunStatus.NO_PROGRESS)
+                _terminate(
+                    ctx,
+                    RunStatus.NO_PROGRESS,
+                    reason="baseline proof invalid",
+                    baseline_status=baseline_status,
+                )
                 return
             _emit(ctx, "node_status", {"node": "execution", "attempt": index})
             try:
-                attempt, worktree = run_execution_node(ctx, index, feedback)
-            except HarnessError:
-                _terminate(ctx, RunStatus.NO_PROGRESS)
+                attempt, active_worktree = run_execution_node(ctx, index, feedback)
+            except HarnessError as exc:
+                _terminate(
+                    ctx,
+                    RunStatus.NO_PROGRESS,
+                    reason=f"harness could not run: {exc}"[:1000],
+                    baseline_status=baseline_status,
+                )
                 return
 
             run.current_attempt = index
@@ -283,7 +326,7 @@ def drive_run(ctx: RunContext) -> None:
             verdict = run_validation_node(
                 ctx,
                 attempt,
-                _accept_dir(worktree, ctx.workspace_subdir),
+                _accept_dir(active_worktree, ctx.workspace_subdir),
                 baseline_checks,
             )
             _emit(ctx, "verdict", {"attempt": index, "passed": verdict.passed})
@@ -293,18 +336,56 @@ def drive_run(ctx: RunContext) -> None:
                 _emit(ctx, "gate", {"attempt": index, "gate": "merge"})
                 return
 
-            discard_worktree(worktree)
-            feedback = _build_feedback(attempt, index)
+            feedback = _build_feedback(ctx.contract, attempt, index)
+            if detector.observe(feedback.failure_signature, attempt.diff):
+                _terminate(
+                    ctx,
+                    RunStatus.NO_PROGRESS,
+                    reason="no progress detected",
+                    active_worktree=active_worktree,
+                    baseline_status=baseline_status,
+                )
+                return
 
-            if run.current_attempt >= budgets.max_attempts:
-                _terminate(ctx, RunStatus.EXHAUSTED)
+            exhausted = guard.terminal_status(
+                attempts=run.current_attempt, model_calls=run.cost.model_calls
+            )
+            if exhausted is not None:
+                _terminate(
+                    ctx,
+                    exhausted,
+                    reason=budget_reason(
+                        exhausted,
+                        attempts=run.current_attempt,
+                        model_calls=run.cost.model_calls,
+                        max_attempts=budgets.max_attempts,
+                        max_model_calls=budgets.max_model_calls,
+                    ),
+                    active_worktree=active_worktree,
+                    baseline_status=baseline_status,
+                )
                 return
-            if ctx.now() >= deadline:
-                _terminate(ctx, RunStatus.TIMED_OUT)
-                return
+            _emit(
+                ctx,
+                "retry",
+                {
+                    "attempt": index + 1,
+                    "max_attempts": budgets.max_attempts,
+                    "reason": "acceptance failed",
+                    "feedback": feedback.model_dump(mode="json"),
+                },
+            )
+            discard_worktree(active_worktree)
+            active_worktree = None
     except Exception:
         # Principle IV: no exception path may leave the run non-terminal or
         # resolve it to SUCCESS.
         if not runner.is_terminal(run.status):
-            _terminate(ctx, RunStatus.NO_PROGRESS)
+            _terminate(
+                ctx,
+                RunStatus.NO_PROGRESS,
+                reason="unexpected orchestration failure",
+                active_worktree=active_worktree,
+                baseline_status=baseline_status,
+            )
         return

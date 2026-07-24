@@ -2,10 +2,10 @@
 
 These exercise the bounded attempt loop against a throwaway git repo and a
 fake harness adapter (no network, no demo-repo): a passing attempt reaches the
-merge gate with a recorded verdict and accumulated cost; a failing attempt
-retries until the attempt budget is exhausted; a zero wall-clock budget stops
-immediately at ``TIMED_OUT`` (never ``SUCCESS``); and a harness that cannot run
-stops at ``NO_PROGRESS``.
+merge gate with a recorded verdict and accumulated cost; repeated unchanged
+failures stop as ``NO_PROGRESS``; a zero wall-clock budget stops immediately at
+``TIMED_OUT`` (never ``SUCCESS``); and a harness that cannot run stops at
+``NO_PROGRESS``.
 """
 
 from __future__ import annotations
@@ -160,7 +160,7 @@ def test_passing_attempt_reaches_gate_with_verdict_and_cost(
     assert run.cost.usd == 0.5
 
 
-def test_failing_attempts_exhaust_the_attempt_budget(
+def test_identical_failing_attempts_stop_as_no_progress(
     git_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     adapter = FakeAdapter({"feature.txt": "done\n"}, model_calls=1)
@@ -170,7 +170,7 @@ def test_failing_attempts_exhaust_the_attempt_budget(
     contract = _contract(f'"{PY}" -c "raise SystemExit(1)"')
     drive_run(_context(run, git_repo, contract))
 
-    assert run.status == RunStatus.EXHAUSTED
+    assert run.status == RunStatus.NO_PROGRESS
     assert run.current_attempt == 2
     assert all(a.verdict is not None and not a.verdict.passed for a in run.attempts)
     assert run.cost.model_calls == 2
@@ -191,6 +191,22 @@ def test_zero_wall_clock_times_out_before_any_attempt(
     assert run.current_attempt == 0
 
 
+def test_model_call_budget_stops_after_the_current_failed_attempt(
+    git_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    adapter = FakeAdapter({"feature.txt": "done\n"}, model_calls=1)
+    _patch_adapter(monkeypatch, adapter)
+
+    run = _make_run(Budget(max_attempts=3, max_wall_clock_s=300, max_model_calls=1))
+    contract = _contract(f'"{PY}" -c "raise SystemExit(1)"')
+    drive_run(_context(run, git_repo, contract))
+
+    assert run.status == RunStatus.EXHAUSTED
+    assert run.current_attempt == 1
+    assert run.attempts[0].verdict is not None
+    assert run.cost.model_calls == 1
+
+
 def test_harness_error_maps_to_no_progress(
     git_repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -203,3 +219,5 @@ def test_harness_error_maps_to_no_progress(
 
     assert run.status == RunStatus.NO_PROGRESS
     assert run.status != RunStatus.SUCCESS
+    assert run.undelivered_report is not None
+    assert "fake harness could not run" in run.undelivered_report["reason"]
