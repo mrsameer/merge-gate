@@ -11,9 +11,13 @@ it edit files and run commands confined to that directory; as with
 (`capture_diff`) rather than parsed out of the agent's own transcript, and the
 transcript text is kept only as the log.
 
-Authentication is an `ANTHROPIC_API_KEY` (falling back to `CLAUDE_CODE_API_KEY`
-when set) read from the environment — never hardcoded. A missing key, or the
-SDK's CLI not being available, means the harness can't even be invoked, so the
+Authentication is read from the environment — never hardcoded — in precedence
+order `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, then `CLAUDE_CODE_API_KEY`.
+A Claude Code OAuth token (the `sk-ant-oat…` credential minted by
+`claude setup-token`, as used by the GitHub Actions SDK) is routed to the SDK
+as `CLAUDE_CODE_OAUTH_TOKEN`, since passed as an API key the CLI rejects it.
+A missing credential, or the SDK's CLI not being available, means the harness
+can't even be invoked, so the
 adapter raises `HarnessError` up front rather than spawning a run doomed to
 fail (Principle IV: a crash must never be recorded as a successful, if empty,
 attempt). A run that completes but changes nothing is a legitimate
@@ -47,7 +51,27 @@ from mergegate.models.attempt import StructuredFeedback
 from mergegate.workspace.worktree import Worktree, capture_diff
 
 API_KEY_ENV_VAR = "ANTHROPIC_API_KEY"
+OAUTH_TOKEN_ENV_VAR = "CLAUDE_CODE_OAUTH_TOKEN"
 FALLBACK_API_KEY_ENV_VAR = "CLAUDE_CODE_API_KEY"
+
+# Claude Code OAuth tokens (minted by `claude setup-token`, the same credential
+# the GitHub Actions Claude Code SDK uses) authenticate as an OAuth token, not
+# an API key: passed as ANTHROPIC_API_KEY the CLI rejects them ("Invalid API
+# key"). They are recognised by their `sk-ant-oat` prefix and routed to
+# CLAUDE_CODE_OAUTH_TOKEN instead.
+_OAUTH_TOKEN_PREFIX = "sk-ant-oat"
+
+
+def _credential_env(credential: str) -> dict[str, str]:
+    """Map a credential to the SDK env var that authenticates it.
+
+    OAuth tokens go to `CLAUDE_CODE_OAUTH_TOKEN`; anything else is treated as
+    an API key and passed as `ANTHROPIC_API_KEY`.
+    """
+    if credential.startswith(_OAUTH_TOKEN_PREFIX):
+        return {OAUTH_TOKEN_ENV_VAR: credential}
+    return {API_KEY_ENV_VAR: credential}
+
 
 # Fully autonomous: the agent may edit files and run commands without an
 # interactive approval prompt. Confinement comes from running inside the
@@ -138,14 +162,16 @@ class AnthropicHarnessAdapter(HarnessAdapter):
         feedback: StructuredFeedback | None,
         workspace: Worktree,
     ) -> HarnessResult:
-        api_key = (
+        credential = (
             self._api_key
             or os.environ.get(API_KEY_ENV_VAR)
+            or os.environ.get(OAUTH_TOKEN_ENV_VAR)
             or os.environ.get(FALLBACK_API_KEY_ENV_VAR)
         )
-        if not api_key:
+        if not credential:
             raise HarnessError(
-                f"{API_KEY_ENV_VAR} (or {FALLBACK_API_KEY_ENV_VAR}) is not set; "
+                f"{API_KEY_ENV_VAR} (or {OAUTH_TOKEN_ENV_VAR} / "
+                f"{FALLBACK_API_KEY_ENV_VAR}) is not set; "
                 "cannot invoke the Claude Agent SDK"
             )
 
@@ -154,7 +180,7 @@ class AnthropicHarnessAdapter(HarnessAdapter):
             cwd=str(workspace.path),
             permission_mode=self._permission_mode,
             model=self._model,
-            env={API_KEY_ENV_VAR: api_key},
+            env=_credential_env(credential),
         )
 
         try:

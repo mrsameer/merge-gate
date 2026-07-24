@@ -29,6 +29,7 @@ from mergegate.acceptance.commands import run_command
 from mergegate.harness.anthropic import (
     API_KEY_ENV_VAR,
     FALLBACK_API_KEY_ENV_VAR,
+    OAUTH_TOKEN_ENV_VAR,
     AnthropicHarnessAdapter,
 )
 from mergegate.harness.base import HarnessError, HarnessResult
@@ -114,6 +115,7 @@ def test_missing_api_key_raises_harness_error(
     monkeypatch: pytest.MonkeyPatch, workspace: Worktree
 ) -> None:
     monkeypatch.delenv(API_KEY_ENV_VAR, raising=False)
+    monkeypatch.delenv(OAUTH_TOKEN_ENV_VAR, raising=False)
     monkeypatch.delenv(FALLBACK_API_KEY_ENV_VAR, raising=False)
     fake = FakeQuery([])
     adapter = AnthropicHarnessAdapter(query_fn=fake)
@@ -129,6 +131,7 @@ def test_fallback_api_key_env_var_is_accepted(
     monkeypatch: pytest.MonkeyPatch, workspace: Worktree
 ) -> None:
     monkeypatch.delenv(API_KEY_ENV_VAR, raising=False)
+    monkeypatch.delenv(OAUTH_TOKEN_ENV_VAR, raising=False)
     monkeypatch.setenv(FALLBACK_API_KEY_ENV_VAR, "fallback-key")
     fake = FakeQuery([_result_message()])
     adapter = AnthropicHarnessAdapter(query_fn=fake)
@@ -137,6 +140,23 @@ def test_fallback_api_key_env_var_is_accepted(
 
     assert fake.prompt == "objective"
     assert fake.options.env[API_KEY_ENV_VAR] == "fallback-key"
+
+
+def test_oauth_token_routes_to_oauth_env_var(
+    monkeypatch: pytest.MonkeyPatch, workspace: Worktree
+) -> None:
+    """A Claude Code OAuth token (`sk-ant-oat…`) must be passed to the SDK as
+    CLAUDE_CODE_OAUTH_TOKEN, never as ANTHROPIC_API_KEY (which rejects it)."""
+    monkeypatch.delenv(API_KEY_ENV_VAR, raising=False)
+    monkeypatch.delenv(FALLBACK_API_KEY_ENV_VAR, raising=False)
+    monkeypatch.setenv(OAUTH_TOKEN_ENV_VAR, "sk-ant-oat01-secret")
+    fake = FakeQuery([_result_message()])
+    adapter = AnthropicHarnessAdapter(query_fn=fake)
+
+    adapter.propose_changes("objective", None, workspace)
+
+    assert fake.options.env[OAUTH_TOKEN_ENV_VAR] == "sk-ant-oat01-secret"
+    assert API_KEY_ENV_VAR not in fake.options.env
 
 
 def test_propose_changes_captures_diff_and_maps_usage(
