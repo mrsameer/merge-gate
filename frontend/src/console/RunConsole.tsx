@@ -33,6 +33,8 @@ export function RunConsole({
   const applyNodeStatus = useAppStore((s) => s.applyNodeStatus);
   const retry = useAppStore((s) => s.retry);
   const setRetry = useAppStore((s) => s.setRetry);
+  const clarification = useAppStore((s) => s.clarification);
+  const setClarification = useAppStore((s) => s.setClarification);
 
   useEffect(() => {
     if (!runId) return;
@@ -72,12 +74,36 @@ export function RunConsole({
       harness_output: record("harness_output"),
       command_result: record("command_result"),
       policy_block: record("policy_block"),
-      terminal: record("terminal"),
+      terminal: (data) => {
+        const payload = data as {
+          status?: string;
+          clarification?: {
+            reason: string;
+            conflicting_criteria: string[];
+          };
+        };
+        if (
+          payload.status === "CLARIFICATION_REQUIRED" &&
+          payload.clarification
+        ) {
+          setClarification(payload.clarification);
+          applyNodeStatus("execution", "skipped");
+          applyNodeStatus("validation", "skipped");
+        }
+        record("terminal")(data);
+      },
     };
 
     const client = connect(runId, handlers);
     return () => client.close();
-  }, [runId, connect, appendEvent, applyNodeStatus, setRetry]);
+  }, [
+    runId,
+    connect,
+    appendEvent,
+    applyNodeStatus,
+    setRetry,
+    setClarification,
+  ]);
 
   const statuses = Object.entries(nodeStatuses);
 
@@ -94,6 +120,24 @@ export function RunConsole({
 
       {!collapsed && (
         <div className="run-console__body">
+          {clarification && (
+            <section
+              className="run-console__clarification"
+              data-testid="clarification-request"
+              aria-live="assertive"
+            >
+              <h2>Clarification required</h2>
+              <p>{clarification.reason}</p>
+              <p>
+                Conflicting criteria:{" "}
+                <strong>{clarification.conflicting_criteria.join(", ")}</strong>
+              </p>
+              <p className="run-console__no-attempt">
+                No execution attempt was created. Resolve the conflict before
+                starting a new run.
+              </p>
+            </section>
+          )}
           {retry && (
             <div className="run-console__retry" aria-live="polite">
               <strong data-testid="attempt-progress">

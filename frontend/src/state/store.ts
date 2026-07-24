@@ -5,7 +5,7 @@
 // calls themselves stay in those panels via the api client (../api).
 
 import { create } from "zustand";
-import type { Contract, Criterion, Run } from "../api";
+import type { Clarification, Contract, Criterion, Run } from "../api";
 
 export interface ConsoleEvent {
   seq: number;
@@ -29,6 +29,7 @@ export interface AppState {
   nodeStatuses: Record<string, string>;
   events: ConsoleEvent[];
   retry: RetryState | null;
+  clarification: Clarification | null;
 
   selectNode: (nodeId: string | null) => void;
   setObjective: (objective: string) => void;
@@ -38,6 +39,7 @@ export interface AppState {
   applyNodeStatus: (node: string, status: string) => void;
   appendEvent: (type: string, data: Record<string, unknown>) => void;
   setRetry: (retry: RetryState | null) => void;
+  setClarification: (clarification: Clarification | null) => void;
   reset: () => void;
 }
 
@@ -50,6 +52,7 @@ const initialState = {
   nodeStatuses: {},
   events: [],
   retry: null,
+  clarification: null,
 } satisfies Partial<AppState>;
 
 export const useAppStore = create<AppState>((set) => ({
@@ -60,7 +63,12 @@ export const useAppStore = create<AppState>((set) => ({
   setObjective: (objective) => set({ objective }),
 
   // A created/started run always carries its id, so keep runId in sync.
-  setRun: (run) => set({ run, runId: run.id }),
+  setRun: (run) =>
+    set({
+      run,
+      runId: run.id,
+      clarification: run.clarification ?? null,
+    }),
 
   setContract: (contract) => set({ contract }),
 
@@ -80,6 +88,8 @@ export const useAppStore = create<AppState>((set) => ({
     })),
 
   setRetry: (retry) => set({ retry }),
+
+  setClarification: (clarification) => set({ clarification }),
 
   reset: () => set({ ...initialState }),
 }));

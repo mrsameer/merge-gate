@@ -37,6 +37,7 @@ from mergegate.acceptance.replay import replay_verdict
 from mergegate.api.events import event_bus
 from mergegate.api.store import RunRecord, store
 from mergegate.config.settings import load_settings
+from mergegate.criteria.consistency import detect_inconsistency
 from mergegate.criteria.contract import (
     ContractStateError,
     approve_contract,
@@ -362,6 +363,20 @@ def start_run(run_id: str) -> JSONResponse:
             status_code=409, detail=f"run cannot start from status {run.status}"
         )
 
+    def emit(event_type: str, payload: dict) -> None:
+        event_bus.publish(run.id, event_type, payload)
+
+    from mergegate.orchestrator import runner
+
+    issue = detect_inconsistency(record.contract)
+    if issue is not None:
+        runner.require_clarification(
+            run,
+            issue,
+            on_terminal=lambda payload: emit("terminal", payload),
+        )
+        return _run_json(run)
+
     provider = _select_provider(run)
     subdir = _repo_subdir(run.repo_ref)
 
@@ -372,9 +387,6 @@ def start_run(run_id: str) -> JSONResponse:
     elif provider in {"anthropic", "gemini"} and run.model:
         adapter_kwargs = {"model": run.model}
 
-    def emit(event_type: str, payload: dict) -> None:
-        event_bus.publish(run.id, event_type, payload)
-
     context = RunContext(
         run=run,
         contract=record.contract,
@@ -384,8 +396,6 @@ def start_run(run_id: str) -> JSONResponse:
         adapter_kwargs=adapter_kwargs,
         on_event=emit,
     )
-
-    from mergegate.orchestrator import runner
 
     runner.transition(run, RunStatus.RUNNING)
     thread = threading.Thread(target=drive_run, args=(context,), daemon=True)

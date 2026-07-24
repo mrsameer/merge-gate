@@ -101,6 +101,56 @@ describe("RunConsole", () => {
     );
   });
 
+  it("renders a truthful clarification panel and zero-attempt evidence", async () => {
+    let captured: RunEventHandlers | undefined;
+    useAppStore.setState({
+      runId: "run-1",
+      run: {
+        id: "run-1",
+        workflow_id: "default-four-role-loop",
+        objective:
+          "POST /orders must return both 200 and 201 for the same successful request.",
+        repo_ref: "demo-repo",
+        status: "running",
+        budgets: {
+          max_attempts: 3,
+          max_wall_clock_s: 600,
+          max_model_calls: 20,
+        },
+        current_attempt: 0,
+        cost: { tokens: 0, model_calls: 0, usd: 0 },
+      },
+    });
+    const connect = vi.fn((_runId: string, handlers: RunEventHandlers) => {
+      captured = handlers;
+      return { close: vi.fn() };
+    });
+
+    render(
+      <RunConsole collapsed={false} onToggle={() => {}} connect={connect} />,
+    );
+
+    act(() =>
+      captured?.terminal?.({
+        status: "CLARIFICATION_REQUIRED",
+        clarification: {
+          reason:
+            "The same successful request cannot require both HTTP 200 and HTTP 201.",
+          conflicting_criteria: ["feature-exists"],
+        },
+        current_attempt: 0,
+      }),
+    );
+
+    const panel = await screen.findByTestId("clarification-request");
+    expect(panel).toHaveTextContent("Clarification required");
+    expect(panel).toHaveTextContent("HTTP 200");
+    expect(panel).toHaveTextContent("HTTP 201");
+    expect(panel).toHaveTextContent("feature-exists");
+    expect(panel).toHaveTextContent("No execution attempt was created");
+    expect(screen.queryByText(/retrying because/i)).not.toBeInTheDocument();
+  });
+
   it("closes the stream when the run console unmounts", () => {
     const close = vi.fn();
     const connect = vi.fn(() => ({ close }));

@@ -163,6 +163,38 @@ describe("InspectorPanel", () => {
     );
   });
 
+  it("preserves a structured clarification returned when starting", async () => {
+    const startRun = vi.fn().mockResolvedValue(
+      makeRun({
+        status: "CLARIFICATION_REQUIRED",
+        clarification: {
+          reason: "The same request cannot return both HTTP 200 and HTTP 201.",
+          conflicting_criteria: ["feature-exists"],
+        },
+      }),
+    );
+    const client = { startRun } as unknown as ApiClient;
+    useAppStore.setState({
+      selectedNodeId: "input",
+      runId: "run-1",
+      run: makeRun(),
+      objective: "obj",
+      contract: makeContract({ approved: true }),
+    });
+    render(<InspectorPanel client={client} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /start run/i }));
+
+    await waitFor(() =>
+      expect(useAppStore.getState().run?.status).toBe("CLARIFICATION_REQUIRED"),
+    );
+    expect(useAppStore.getState().clarification).toEqual({
+      reason: "The same request cannot return both HTTP 200 and HTTP 201.",
+      conflicting_criteria: ["feature-exists"],
+    });
+    expect(screen.getByRole("button", { name: /start run/i })).toBeDisabled();
+  });
+
   it("refreshes the completed run and approves its final merge gate", async () => {
     const getRun = vi
       .fn()
