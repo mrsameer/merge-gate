@@ -23,3 +23,5 @@ class Run(BaseModel):
     cost: CostAccounting
     started_at: datetime | None = None
     ended_at: datetime | None = None
+    branch: str | None = None
+    patch_ref: str | None = None
