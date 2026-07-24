@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -52,6 +54,28 @@ class RepositoryMap(BaseModel):
         return tuple(file.path for file in self.files if file.role == role)
 
 
+def _walk_repository_files(root: Path) -> Iterator[Path]:
+    """Yield stable files while tolerating only directories deleted mid-scan."""
+
+    def handle_error(error: OSError) -> None:
+        if isinstance(error, FileNotFoundError):
+            return
+        raise RepositoryMappingError(
+            f"cannot scan repository {root}: {error}"
+        ) from error
+
+    for directory, dirnames, filenames in os.walk(
+        root,
+        topdown=True,
+        onerror=handle_error,
+    ):
+        dirnames[:] = sorted(
+            name for name in dirnames if name not in _IGNORED_DIRECTORIES
+        )
+        for filename in sorted(filenames):
+            yield Path(directory) / filename
+
+
 def map_repository(repo_path: str | Path) -> RepositoryMap:
     """Return a bounded read-only manifest of source, test, config, and docs files."""
 
@@ -60,12 +84,10 @@ def map_repository(repo_path: str | Path) -> RepositoryMap:
         raise RepositoryMappingError(f"repository path is not a directory: {root}")
 
     mapped_files: list[RepositoryFile] = []
-    for path in sorted(root.rglob("*")):
+    for path in _walk_repository_files(root):
         if len(mapped_files) >= _MAX_FILES:
             break
-        if not path.is_file() or any(
-            part in _IGNORED_DIRECTORIES for part in path.parts
-        ):
+        if not path.is_file():
             continue
         try:
             if path.stat().st_size > _MAX_FILE_SIZE_BYTES:

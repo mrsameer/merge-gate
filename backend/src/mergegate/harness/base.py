@@ -35,6 +35,10 @@ class HarnessError(RuntimeError):
     """
 
 
+class HarnessTimeoutError(HarnessError):
+    """Raised when a coding harness exceeds its configured wall-clock limit."""
+
+
 @dataclass(frozen=True)
 class HarnessResult:
     """Outcome of one `propose_changes` call (data-model.md § ProviderAdapter).

@@ -21,7 +21,12 @@ import os
 from collections.abc import Sequence
 
 from mergegate.acceptance.commands import COMMAND_NOT_FOUND_EXIT_CODE, run_command
-from mergegate.harness.base import HarnessAdapter, HarnessError, HarnessResult
+from mergegate.harness.base import (
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    HarnessTimeoutError,
+)
 from mergegate.models.attempt import StructuredFeedback
 from mergegate.workspace.worktree import Worktree, capture_diff
 
@@ -126,6 +131,10 @@ class CursorAdapter(HarnessAdapter):
 
         if result.exit_code == COMMAND_NOT_FOUND_EXIT_CODE:
             raise HarnessError(f"{self._executable[0]!r} executable not found on PATH")
+        if result.timed_out:
+            raise HarnessTimeoutError(
+                f"Cursor CLI exceeded its {self._timeout_s:g}s execution deadline"
+            )
 
         diff = capture_diff(workspace)
         tokens, model_calls, usd = _parse_usage(result.stdout)

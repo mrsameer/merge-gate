@@ -39,7 +39,7 @@ from mergegate.acceptance.engine import AcceptanceEngine
 from mergegate.acceptance.evidence import build_red_green_evidence
 from mergegate.acceptance.feedback import build_failure_feedback
 from mergegate.acceptance.verdict import compute_verdict
-from mergegate.harness.base import HarnessError
+from mergegate.harness.base import HarnessError, HarnessTimeoutError
 from mergegate.harness.registry import get_adapter
 from mergegate.ledger.ledger import LedgerWriter
 from mergegate.models import (
@@ -216,46 +216,53 @@ def run_execution_node(
     worktree = create_worktree(
         ctx.repo_ref, branch=branch, worktrees_root=ctx.worktrees_root
     )
-    adapter = get_adapter(ctx.provider, **ctx.adapter_kwargs)
-    started = ctx.now()
-    result = adapter.propose_changes(ctx.run.objective, feedback, worktree)
-    elapsed = max(0.0, ctx.now() - started)
+    try:
+        adapter = get_adapter(ctx.provider, **ctx.adapter_kwargs)
+        started = ctx.now()
+        result = adapter.propose_changes(ctx.run.objective, feedback, worktree)
+        elapsed = max(0.0, ctx.now() - started)
 
-    # Rebind (not in-place mutate) so a concurrently polling GET always
-    # serializes a whole accounting, and persist the snapshot when a ledger
-    # is wired (T074/FR-022).
-    ctx.run.cost = cost_accounting.add_result(ctx.run.cost, result, elapsed)
-    attempt = Attempt(
-        id=str(uuid4()),
-        run_id=ctx.run.id,
-        index=index,
-        worktree_path=str(worktree.path),
-        branch=worktree.branch,
-        diff=result.diff,
-        changed_files=result.changed_files,
-        harness_log=result.log,
-    )
-    if ctx.ledger is not None:
-        ctx.ledger.append(
-            LedgerEntryType.HARNESS,
-            {
-                "node": "execution",
-                "attempt": index,
-                "provider": ctx.provider,
-                "model": ctx.run.model,
-                "agent_input": {
-                    "objective": ctx.run.objective,
-                    "feedback": (
-                        feedback.model_dump(mode="json") if feedback else None
-                    ),
-                },
-                "agent_output": result.log,
-                "diff": result.diff,
-                "changed_files": result.changed_files,
-                **cost_accounting.cost_payload(ctx.run.cost),
-            },
+        # Rebind (not in-place mutate) so a concurrently polling GET always
+        # serializes a whole accounting, and persist the snapshot when a ledger
+        # is wired (T074/FR-022).
+        ctx.run.cost = cost_accounting.add_result(ctx.run.cost, result, elapsed)
+        attempt = Attempt(
+            id=str(uuid4()),
+            run_id=ctx.run.id,
+            index=index,
+            worktree_path=str(worktree.path),
+            branch=worktree.branch,
+            diff=result.diff,
+            changed_files=result.changed_files,
+            harness_log=result.log,
         )
-    return attempt, worktree
+        if ctx.ledger is not None:
+            ctx.ledger.append(
+                LedgerEntryType.HARNESS,
+                {
+                    "node": "execution",
+                    "attempt": index,
+                    "provider": ctx.provider,
+                    "model": ctx.run.model,
+                    "agent_input": {
+                        "objective": ctx.run.objective,
+                        "feedback": (
+                            feedback.model_dump(mode="json") if feedback else None
+                        ),
+                    },
+                    "agent_output": result.log,
+                    "diff": result.diff,
+                    "changed_files": result.changed_files,
+                    **cost_accounting.cost_payload(ctx.run.cost),
+                },
+            )
+        return attempt, worktree
+    except Exception:
+        # The caller cannot clean a worktree that never reached the tuple
+        # assignment. Discard here so timeout, provider, and ledger failures
+        # cannot leak an attempt branch or filesystem checkout.
+        discard_worktree(worktree)
+        raise
 
 
 def run_validation_node(
@@ -467,6 +474,14 @@ def drive_run(ctx: RunContext) -> None:
             _emit(ctx, "node_status", {"node": "execution", "attempt": index})
             try:
                 attempt, active_worktree = run_execution_node(ctx, index, feedback)
+            except HarnessTimeoutError as exc:
+                _terminate(
+                    ctx,
+                    RunStatus.TIMED_OUT,
+                    reason=f"harness timed out: {exc}"[:1000],
+                    baseline_status=baseline_status,
+                )
+                return
             except HarnessError as exc:
                 _terminate(
                     ctx,

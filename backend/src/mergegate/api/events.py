@@ -88,7 +88,12 @@ router = APIRouter()
 @router.get("/runs/{run_id}/events")
 async def stream_run_events(run_id: str, request: Request) -> EventSourceResponse:
     """SSE stream of a run's events, reconnectable via `Last-Event-ID`."""
-    raw_last_event_id = request.headers.get("last-event-id")
+    query_last_event_id = (
+        request.query_params.get("last_event_id")
+        if "query_string" in request.scope
+        else None
+    )
+    raw_last_event_id = request.headers.get("last-event-id") or query_last_event_id
     try:
         last_event_id = int(raw_last_event_id) if raw_last_event_id else None
     except ValueError:

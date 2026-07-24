@@ -433,7 +433,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
         <span>Repository</span>
         <input
           aria-label="Repository"
-          value={repoRef}
+          value={run?.repo_ref ?? repoRef}
           disabled={runId !== null}
           onChange={(e) => setRepoRef(e.target.value)}
         />
@@ -443,7 +443,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
         <span>Provider</span>
         <select
           aria-label="Provider"
-          value={provider}
+          value={run?.provider ?? provider}
           disabled={runId !== null}
           onChange={(e) => setProvider(e.target.value)}
         >
@@ -461,7 +461,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
         <span>Model</span>
         <input
           aria-label="Model"
-          value={model}
+          value={run?.model ?? model}
           placeholder={provider === "gemini" ? "gemini-2.5-flash" : "Default"}
           disabled={
             runId !== null || provider === "scripted" || provider === "cursor"

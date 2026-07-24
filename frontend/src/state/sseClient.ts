@@ -1,9 +1,8 @@
 // SSE `EventSource` client for the run event stream, per
 // specs/001-mergegate-control-plane/contracts/control-plane-api.md
-// (`GET /runs/{id}/events`). Native EventSource already resends
-// `Last-Event-ID` on reconnect, which is why research.md picked it over a
-// hand-rolled transport — this client only needs to wire named events to
-// handlers.
+// (`GET /runs/{id}/events`). Native EventSource resends `Last-Event-ID` while
+// one page stays open. A full browser refresh creates a new EventSource, so
+// the persisted cursor is also sent as a query fallback.
 
 export type RunEventType =
   | "node_status"
@@ -34,6 +33,8 @@ export interface ConnectRunEventsOptions {
   baseUrl?: string;
   eventSourceFactory?: (url: string) => EventSource;
   onError?: (event: Event) => void;
+  lastEventId?: number | null;
+  onEventId?: (eventId: number) => void;
 }
 
 export interface RunEventsClient {
@@ -48,7 +49,11 @@ export function connectRunEvents(
   options: ConnectRunEventsOptions = {},
 ): RunEventsClient {
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
-  const url = `${baseUrl}/runs/${runId}/events`;
+  const eventUrl = `${baseUrl}/runs/${runId}/events`;
+  const url =
+    options.lastEventId === null || options.lastEventId === undefined
+      ? eventUrl
+      : `${eventUrl}?last_event_id=${options.lastEventId}`;
   const factory =
     options.eventSourceFactory ?? ((source: string) => new EventSource(source));
   const source = factory(url);
@@ -57,7 +62,12 @@ export function connectRunEvents(
     const handler = handlers[type];
     if (!handler) continue;
     source.addEventListener(type, (event) => {
-      handler(JSON.parse((event as MessageEvent<string>).data));
+      const message = event as MessageEvent<string>;
+      const eventId = Number(message.lastEventId);
+      if (message.lastEventId && Number.isSafeInteger(eventId)) {
+        options.onEventId?.(eventId);
+      }
+      handler(JSON.parse(message.data));
     });
   }
 

@@ -19,7 +19,12 @@ from pathlib import Path
 from typing import Any
 
 from mergegate.acceptance.commands import COMMAND_NOT_FOUND_EXIT_CODE, run_command
-from mergegate.harness.base import HarnessAdapter, HarnessError, HarnessResult
+from mergegate.harness.base import (
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    HarnessTimeoutError,
+)
 from mergegate.models.attempt import StructuredFeedback
 from mergegate.workspace.worktree import Worktree, capture_diff
 
@@ -191,6 +196,10 @@ class GeminiHarnessAdapter(HarnessAdapter):
             )
         if result.exit_code == COMMAND_NOT_FOUND_EXIT_CODE:
             raise HarnessError(f"{self._executable[0]!r} executable not found on PATH")
+        if result.timed_out:
+            raise HarnessTimeoutError(
+                f"Gemini CLI exceeded its {self._timeout_s:g}s execution deadline"
+            )
         if not result.succeeded:
             detail = (result.stderr or result.stdout).strip()
             suffix = f": {detail}" if detail else ""

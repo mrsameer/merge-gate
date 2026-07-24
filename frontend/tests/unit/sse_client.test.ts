@@ -14,22 +14,25 @@ class FakeEventSource {
   public closed = false;
   private listeners = new Map<
     string,
-    Array<(event: { data: string }) => void>
+    Array<(event: { data: string; lastEventId: string }) => void>
   >();
 
   constructor(url: string) {
     this.url = url;
   }
 
-  addEventListener(type: string, listener: (event: { data: string }) => void) {
+  addEventListener(
+    type: string,
+    listener: (event: { data: string; lastEventId: string }) => void,
+  ) {
     const existing = this.listeners.get(type) ?? [];
     existing.push(listener);
     this.listeners.set(type, existing);
   }
 
-  dispatch(type: string, payload: unknown) {
+  dispatch(type: string, payload: unknown, lastEventId = "") {
     for (const listener of this.listeners.get(type) ?? []) {
-      listener({ data: JSON.stringify(payload) });
+      listener({ data: JSON.stringify(payload), lastEventId });
     }
   }
 
@@ -128,5 +131,24 @@ describe("connectRunEvents", () => {
 
     client.close();
     expect(created?.closed).toBe(true);
+  });
+
+  it("resumes a refreshed client after its persisted event cursor", () => {
+    let created: FakeEventSource | undefined;
+    const onEventId = vi.fn();
+    const options = {
+      lastEventId: 7,
+      onEventId,
+      eventSourceFactory: (url: string) => {
+        created = new FakeEventSource(url);
+        return created as unknown as EventSource;
+      },
+    };
+
+    connectRunEvents("run-refresh", { retry: vi.fn() }, options);
+    created?.dispatch("retry", { attempt: 2 }, "8");
+
+    expect(created?.url).toBe("/api/runs/run-refresh/events?last_event_id=7");
+    expect(onEventId).toHaveBeenCalledWith(8);
   });
 });

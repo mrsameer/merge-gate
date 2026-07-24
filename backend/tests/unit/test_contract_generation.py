@@ -1,5 +1,6 @@
 """Unit tests for T022/T023 repository-grounded contracts and freeze semantics."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -10,7 +11,11 @@ from mergegate.criteria.contract import (
     edit_draft,
     verify_frozen_contract,
 )
-from mergegate.criteria.generate import generate_hybrid_contract, map_repository
+from mergegate.criteria.generate import (
+    RepositoryMappingError,
+    generate_hybrid_contract,
+    map_repository,
+)
 from mergegate.models import Contract
 
 
@@ -104,3 +109,49 @@ def test_tampered_frozen_contract_fails_verification(mapped_demo_repo) -> None:
 def test_empty_draft_cannot_be_created_or_approved() -> None:
     with pytest.raises(ValueError, match="at least 1 item"):
         Contract(id="contract-1", run_id="run-1", criteria=[])
+
+
+def test_repository_map_tolerates_cache_directory_deleted_during_scan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "app.py"
+    source.write_text("VALUE = 1\n", encoding="utf-8")
+    transient = tmp_path / "pytest-cache-files-race"
+    transient.mkdir()
+    (transient / "leftover.py").write_text("VALUE = 2\n", encoding="utf-8")
+    real_scandir = os.scandir
+    deleted = False
+
+    def flaky_scandir(path):
+        nonlocal deleted
+        if Path(path) == transient and not deleted:
+            deleted = True
+            (transient / "leftover.py").unlink()
+            transient.rmdir()
+            raise FileNotFoundError(str(transient))
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", flaky_scandir)
+
+    mapped = map_repository(tmp_path)
+
+    assert {entry.path for entry in mapped.files} == {"app.py"}
+
+
+def test_repository_map_does_not_hide_stable_scan_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "app.py").write_text("VALUE = 1\n", encoding="utf-8")
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    real_scandir = os.scandir
+
+    def denied_scandir(path):
+        if Path(path) == locked:
+            raise PermissionError(f"permission denied: {locked}")
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", denied_scandir)
+
+    with pytest.raises(RepositoryMappingError, match="permission denied"):
+        map_repository(tmp_path)
