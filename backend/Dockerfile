@@ -35,4 +35,4 @@ ENV PATH="/app/.venv/bin:${PATH}" \
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "chown -R mergegate:mergegate /data && exec runuser -u mergegate --preserve-environment -- sh -c 'uvicorn mergegate.api.main:app --host 0.0.0.0 --port ${PORT:-8000}'"]
+CMD ["sh", "-c", "chown -R mergegate:mergegate /data && export HOME=/home/mergegate USER=mergegate LOGNAME=mergegate && exec runuser -u mergegate --preserve-environment -- sh -c 'uvicorn mergegate.api.main:app --host 0.0.0.0 --port ${PORT:-8000}'"]
