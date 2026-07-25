@@ -9,6 +9,7 @@ import { InspectorPanel } from "../inspector/InspectorPanel";
 import { RunConsole } from "../console/RunConsole";
 import { EvidencePanel } from "../evidence/EvidencePanel";
 import { useAppStore } from "../state/store";
+import { AccountPanel } from "../auth/AccountPanel";
 import "./AppShell.css";
 
 export function AppShell() {
@@ -18,6 +19,7 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
+      <AccountPanel />
       <TopBar />
       <div className="app-shell__body">
         <NodeLibraryPanel />

@@ -4,7 +4,9 @@
 import type {
   ApiErrorBody,
   Attempt,
+  AuthSession,
   Budget,
+  ConnectionSummary,
   Clarification,
   Contract,
   ContractMode,
@@ -16,8 +18,13 @@ import type {
   Verdict,
   Workflow,
 } from "./types";
+import { getSessionToken } from "../auth/session";
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+export function getApiBaseUrl(): string {
+  return DEFAULT_BASE_URL;
+}
 
 export class ApiError extends Error {
   readonly status: number;
@@ -34,6 +41,7 @@ export class ApiError extends Error {
 export interface ApiClientOptions {
   baseUrl?: string;
   fetch?: typeof fetch;
+  accessToken?: () => string | null;
 }
 
 async function request<T>(
@@ -43,10 +51,15 @@ async function request<T>(
 ): Promise<T> {
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
   const fetchImpl = options.fetch ?? globalThis.fetch;
+  const accessToken = (options.accessToken ?? getSessionToken)();
 
   const response = await fetchImpl(`${baseUrl}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init.headers },
+    headers: {
+      "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...init.headers,
+    },
   });
 
   const body = response.status === 204 ? null : await response.json();
@@ -70,7 +83,14 @@ async function requestText(
 ): Promise<string> {
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
   const fetchImpl = options.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(`${baseUrl}${path}`, init);
+  const accessToken = (options.accessToken ?? getSessionToken)();
+  const response = await fetchImpl(`${baseUrl}${path}`, {
+    ...init,
+    headers: {
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...init.headers,
+    },
+  });
   const content = await response.text();
   if (!response.ok) {
     let errorBody: ApiErrorBody | null = null;
@@ -180,6 +200,26 @@ export function createApiClient(options: ApiClientOptions = {}) {
         "/repo/reset",
         { method: "POST", body: JSON.stringify({ repo_ref: repoRef }) },
       ),
+
+    getSession: () => call<AuthSession>("/auth/session"),
+    createEventTicket: (runId: string) =>
+      call<{ ticket: string | null }>(`/runs/${runId}/event-ticket`, {
+        method: "POST",
+      }),
+    logout: () => call<void>("/auth/logout", { method: "POST" }),
+    listConnections: () => call<ConnectionSummary[]>("/auth/connections"),
+    saveConnection: (kind: string, secret: string, label: string) =>
+      call<void>(`/auth/connections/${kind}`, {
+        method: "PUT",
+        body: JSON.stringify({ secret, label }),
+      }),
+    deleteConnection: (kind: string) =>
+      call<void>(`/auth/connections/${kind}`, { method: "DELETE" }),
+    connectRepository: (fullName: string) =>
+      call<{ full_name: string; repo_ref: string }>("/auth/github/repositories", {
+        method: "POST",
+        body: JSON.stringify({ full_name: fullName }),
+      }),
   };
 }
 

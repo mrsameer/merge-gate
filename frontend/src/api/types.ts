@@ -190,3 +190,19 @@ export interface ApiErrorBody {
     message: string;
   };
 }
+
+export interface AuthUser {
+  id: string;
+  github_login: string;
+  avatar_url: string | null;
+}
+
+export type AuthSession =
+  | { authenticated: false }
+  | { authenticated: true; user: AuthUser };
+
+export interface ConnectionSummary {
+  kind: string;
+  label: string;
+  updated_at: string;
+}

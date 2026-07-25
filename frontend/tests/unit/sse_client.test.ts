@@ -151,4 +151,24 @@ describe("connectRunEvents", () => {
     expect(created?.url).toBe("/api/runs/run-refresh/events?last_event_id=7");
     expect(onEventId).toHaveBeenCalledWith(8);
   });
+
+  it("adds an event ticket for an authenticated stream", () => {
+    let created: FakeEventSource | undefined;
+
+    connectRunEvents(
+      "private-run",
+      {},
+      {
+        ticket: "short-lived-ticket",
+        eventSourceFactory: (url) => {
+          created = new FakeEventSource(url);
+          return created as unknown as EventSource;
+        },
+      },
+    );
+
+    expect(created?.url).toBe(
+      "/api/runs/private-run/events?ticket=short-lived-ticket",
+    );
+  });
 });

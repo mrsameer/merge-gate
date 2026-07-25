@@ -34,6 +34,7 @@ class RunRecord:
     contract: Contract | None = None
     thread: threading.Thread | None = field(default=None, repr=False)
     ledger: LedgerWriter | None = field(default=None, repr=False)
+    owner_id: str | None = None
 
 
 class Store:
@@ -63,7 +64,9 @@ class Store:
         with self._lock:
             self._workflows[workflow.id] = workflow
 
-    def add_run(self, run: Run, workflow: Workflow) -> RunRecord:
+    def add_run(
+        self, run: Run, workflow: Workflow, *, owner_id: str | None = None
+    ) -> RunRecord:
         with self._lock:
             ledger_conn = connect(
                 self._ledger_root / f"{run.id}.sqlite3",
@@ -96,7 +99,9 @@ class Store:
                 LedgerEntryType.OBJECTIVE,
                 {"objective": run.objective, "repo_ref": run.repo_ref},
             )
-            record = RunRecord(run=run, workflow=workflow, ledger=ledger)
+            record = RunRecord(
+                run=run, workflow=workflow, ledger=ledger, owner_id=owner_id
+            )
             self._runs[run.id] = record
         return record
 

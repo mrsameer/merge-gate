@@ -21,6 +21,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from mergegate.api.events import router as events_router
 from mergegate.api.runs import router as runs_router
 from mergegate.api.workflows import router as workflows_router
+from mergegate.auth.router import router as auth_router
 from mergegate.config.environment import load_local_env
 from mergegate.config.settings import load_cors_allow_origins
 
@@ -50,6 +51,7 @@ def health() -> dict[str, str]:
 api_router.include_router(events_router)
 api_router.include_router(workflows_router)
 api_router.include_router(runs_router)
+api_router.include_router(auth_router)
 
 app.include_router(api_router)
 

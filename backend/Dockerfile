@@ -23,10 +23,12 @@ RUN uv sync --frozen --no-dev \
     && git -C /demo-repo commit -m "Baseline demo repository"
 
 ENV PATH="/app/.venv/bin:${PATH}" \
+    MERGEGATE_DATA_DIR="/data" \
     PYTHONPATH="/app/src" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8000
+VOLUME ["/data"]
 
 CMD ["sh", "-c", "uvicorn mergegate.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

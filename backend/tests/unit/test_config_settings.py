@@ -24,8 +24,8 @@ from mergegate.config.settings import (
     MODEL_ENV_VAR,
     PROVIDER_ENV_VAR,
     Settings,
-    load_settings,
     load_cors_allow_origins,
+    load_settings,
     resolve_budget,
     resolve_provider,
 )
@@ -72,7 +72,11 @@ def test_load_settings_ignores_unrelated_env_vars() -> None:
 
 def test_load_cors_allow_origins_parses_only_non_empty_origins() -> None:
     origins = load_cors_allow_origins(
-        {CORS_ALLOW_ORIGINS_ENV_VAR: " https://app.example.com, ,https://preview.example.com "}
+        {
+            CORS_ALLOW_ORIGINS_ENV_VAR: (
+                " https://app.example.com, ,https://preview.example.com "
+            )
+        }
     )
 
     assert origins == ["https://app.example.com", "https://preview.example.com"]

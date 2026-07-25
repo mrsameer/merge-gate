@@ -35,6 +35,7 @@ export interface ConnectRunEventsOptions {
   onError?: (event: Event) => void;
   lastEventId?: number | null;
   onEventId?: (eventId: number) => void;
+  ticket?: string | null;
 }
 
 export interface RunEventsClient {
@@ -50,10 +51,12 @@ export function connectRunEvents(
 ): RunEventsClient {
   const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
   const eventUrl = `${baseUrl}/runs/${runId}/events`;
-  const url =
-    options.lastEventId === null || options.lastEventId === undefined
-      ? eventUrl
-      : `${eventUrl}?last_event_id=${options.lastEventId}`;
+  const params = new URLSearchParams();
+  if (options.lastEventId !== null && options.lastEventId !== undefined) {
+    params.set("last_event_id", String(options.lastEventId));
+  }
+  if (options.ticket) params.set("ticket", options.ticket);
+  const url = params.size ? `${eventUrl}?${params}` : eventUrl;
   const factory =
     options.eventSourceFactory ?? ((source: string) => new EventSource(source));
   const source = factory(url);

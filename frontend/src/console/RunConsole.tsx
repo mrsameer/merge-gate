@@ -18,10 +18,16 @@ type ConnectFn = (
   handlers: RunEventHandlers,
   lastEventId: number | null,
   onEventId: (eventId: number) => void,
+  ticket?: string | null,
 ) => RunEventsClient;
 
-const defaultConnect: ConnectFn = (runId, handlers, lastEventId, onEventId) =>
-  connectRunEvents(runId, handlers, { lastEventId, onEventId });
+const defaultConnect: ConnectFn = (
+  runId,
+  handlers,
+  lastEventId,
+  onEventId,
+  ticket,
+) => connectRunEvents(runId, handlers, { lastEventId, onEventId, ticket });
 const defaultClient = createApiClient();
 
 export interface RunConsoleProps {
@@ -151,13 +157,39 @@ export function RunConsole({
       },
     };
 
-    const eventsClient = connect(
-      runId,
-      handlers,
-      useAppStore.getState().lastEventId,
-      setLastEventId,
-    );
-    return () => eventsClient.close();
+    let active = true;
+    let eventsClient: RunEventsClient | null = null;
+    const connectWithoutTicket = () => {
+      eventsClient = connect(
+        runId,
+        handlers,
+        useAppStore.getState().lastEventId,
+        setLastEventId,
+      );
+    };
+    if (connect !== defaultConnect || typeof client.createEventTicket !== "function") {
+      connectWithoutTicket();
+    } else {
+      void client
+        .createEventTicket(runId)
+        .then(({ ticket }) => {
+          if (!active) return;
+          eventsClient = connect(
+            runId,
+            handlers,
+            useAppStore.getState().lastEventId,
+            setLastEventId,
+            ticket,
+          );
+        })
+        .catch(() => {
+          if (active) connectWithoutTicket();
+        });
+    }
+    return () => {
+      active = false;
+      eventsClient?.close();
+    };
   }, [
     runId,
     connect,

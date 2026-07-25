@@ -26,13 +26,12 @@ agent — produces the verdict.
 from __future__ import annotations
 
 import json
-import os
 import sys
 import threading
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -40,6 +39,8 @@ from mergegate.acceptance.commands import run_command
 from mergegate.acceptance.replay import replay_verdict
 from mergegate.api.events import event_bus
 from mergegate.api.store import RunRecord, store
+from mergegate.auth.router import optional_current_user
+from mergegate.auth.store import ConnectionError, CurrentUser, get_auth_store
 from mergegate.config.providers import ProviderSelection, resolve_agent_provider
 from mergegate.config.settings import load_settings
 from mergegate.criteria.consistency import detect_inconsistency
@@ -154,7 +155,7 @@ class ResetRepoRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _require_record(run_id: str) -> RunRecord:
+def _require_record(run_id: str, user: CurrentUser | None = None) -> RunRecord:
     record = store.get_run(run_id)
     if record is None:
         raise HTTPException(
@@ -164,6 +165,8 @@ def _require_record(run_id: str) -> RunRecord:
                 "restart is not supported by the process-local v1 store"
             ),
         )
+    if record.owner_id is not None and (user is None or user.id != record.owner_id):
+        raise HTTPException(status_code=404, detail=f"run {run_id!r} not found")
     return record
 
 
@@ -281,7 +284,6 @@ def _select_provider(record: RunRecord) -> ProviderSelection:
     if (
         run.provider is None
         and execution_provider is None
-        and "MERGEGATE_PROVIDER" not in os.environ
         and is_demo_repo(run.repo_ref, run.objective)
     ):
         settings = settings.model_copy(update={"provider": "scripted"})
@@ -301,7 +303,10 @@ def _select_provider(record: RunRecord) -> ProviderSelection:
 
 
 @router.post("/runs")
-def create_run(request: CreateRunRequest) -> JSONResponse:
+def create_run(
+    request: CreateRunRequest,
+    user: CurrentUser | None = Depends(optional_current_user),
+) -> JSONResponse:
     """Create a run; it sits at the contract gate with no attempts yet."""
     workflow = store.get_workflow(request.workflow_id)
     # The UI renders this built-in graph immediately, so its first run must not
@@ -314,11 +319,28 @@ def create_run(request: CreateRunRequest) -> JSONResponse:
             status_code=404, detail=f"workflow {request.workflow_id!r} not found"
         )
 
+    repo_ref = request.repo_ref
+    owner_id: str | None = None
+    if repo_ref.startswith("github:"):
+        if user is None:
+            raise HTTPException(
+                status_code=401, detail="Sign in with GitHub to select a repository"
+            )
+        try:
+            repo_ref = str(
+                get_auth_store().clone_repository(
+                    user.id, repo_ref.removeprefix("github:")
+                )
+            )
+        except ConnectionError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        owner_id = user.id
+
     run = Run(
         id=f"run-{uuid4()}",
         workflow_id=request.workflow_id,
         objective=request.objective,
-        repo_ref=_resolve_repo_ref(request.repo_ref),
+        repo_ref=_resolve_repo_ref(repo_ref),
         provider=request.provider,
         model=request.model,
         location=request.location.strip() or "global",
@@ -328,7 +350,7 @@ def create_run(request: CreateRunRequest) -> JSONResponse:
         current_attempt=0,
         cost=CostAccounting(),
     )
-    store.add_run(run, workflow)
+    store.add_run(run, workflow, owner_id=owner_id)
     return _run_json(run, status_code=201)
 
 
@@ -345,25 +367,31 @@ def reset_repo(request: ResetRepoRequest) -> JSONResponse:
 
 
 @router.get("/runs/{run_id}")
-def get_run(run_id: str) -> JSONResponse:
+def get_run(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Return the run's status, cost, attempt counter, and mergeable ref."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     return _run_json(record.run)
 
 
 @router.get("/runs/{run_id}/attempts")
-def get_attempts(run_id: str) -> JSONResponse:
+def get_attempts(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Return the run's recorded attempts, each with its verdict."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     return JSONResponse(
         content=[attempt.model_dump(mode="json") for attempt in record.run.attempts]
     )
 
 
 @router.get("/runs/{run_id}/ledger")
-def get_ledger(run_id: str) -> JSONResponse:
+def get_ledger(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Return the complete durable hash-chained timeline in sequence order."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     if record.ledger is None:
         raise HTTPException(status_code=409, detail="run ledger is unavailable")
     return JSONResponse(
@@ -373,10 +401,27 @@ def get_ledger(run_id: str) -> JSONResponse:
     )
 
 
+@router.post("/runs/{run_id}/event-ticket")
+def create_event_ticket(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
+    """Issue a short-lived ticket for a private run's SSE stream."""
+    record = _require_record(run_id, user)
+    if record.owner_id is None:
+        return JSONResponse(content={"ticket": None})
+    if user is None:
+        raise HTTPException(status_code=404, detail=f"run {run_id!r} not found")
+    return JSONResponse(
+        content={"ticket": get_auth_store().create_event_ticket(user.id, run_id)}
+    )
+
+
 @router.get("/runs/{run_id}/evidence")
-def get_evidence(run_id: str) -> JSONResponse:
+def get_evidence(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Download a terminal bundle, preserving the live US2 proof before then."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     attempt = next(
         (item for item in reversed(record.run.attempts) if item.verdict), None
     )
@@ -408,9 +453,11 @@ def get_evidence(run_id: str) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}/replay")
-def replay_run(run_id: str) -> JSONResponse:
+def replay_run(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Replay the recorded verdict without starting a provider or model call."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     attempt = next(
         (item for item in reversed(record.run.attempts) if item.verdict), None
     )
@@ -436,9 +483,13 @@ def replay_run(run_id: str) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}/criteria:generate")
-def generate_criteria(run_id: str, request: GenerateRequest) -> JSONResponse:
+def generate_criteria(
+    run_id: str,
+    request: GenerateRequest,
+    user: CurrentUser | None = Depends(optional_current_user),
+) -> JSONResponse:
     """Generate a hybrid, file-grounded draft contract (not yet approved)."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     run = record.run
 
     repo_map = map_repository(run.repo_ref)
@@ -454,9 +505,13 @@ def generate_criteria(run_id: str, request: GenerateRequest) -> JSONResponse:
 
 
 @router.put("/runs/{run_id}/criteria")
-def edit_criteria(run_id: str, request: EditCriteriaRequest) -> JSONResponse:
+def edit_criteria(
+    run_id: str,
+    request: EditCriteriaRequest,
+    user: CurrentUser | None = Depends(optional_current_user),
+) -> JSONResponse:
     """Edit / reprioritize the draft contract before approval."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     if record.contract is None:
         raise HTTPException(status_code=409, detail="no contract has been generated")
 
@@ -470,9 +525,11 @@ def edit_criteria(run_id: str, request: EditCriteriaRequest) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}/criteria:approve")
-def approve_criteria(run_id: str) -> JSONResponse:
+def approve_criteria(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Approve and freeze the draft contract, recording a frozen hash."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     if record.contract is None:
         raise HTTPException(status_code=409, detail="no contract has been generated")
 
@@ -491,9 +548,11 @@ def approve_criteria(run_id: str) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}:start")
-def start_run(run_id: str) -> JSONResponse:
+def start_run(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Start the run's bounded loop; rejected (409) until the contract is frozen."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     run = record.run
 
     if record.contract is None or not record.contract.approved:
@@ -546,9 +605,21 @@ def start_run(run_id: str) -> JSONResponse:
         adapter_kwargs = {"changes": demo_idempotency_changes()}
     elif provider in {"anthropic", "claude-agent-sdk", "gemini", "aider", "codex"}:
         adapter_kwargs = {"model": selection.model}
+        if record.owner_id is not None:
+            credential = get_auth_store().provider_secret(record.owner_id, provider)
+            if (
+                provider in {"gemini", "anthropic", "claude-agent-sdk"}
+                and not credential
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Connect a {provider} credential before starting this run",
+                )
+            if credential:
+                adapter_kwargs["api_key"] = credential
         if provider == "gemini":
             adapter_kwargs["location"] = run.location
-        if provider == "anthropic":
+        if provider in {"anthropic", "claude-agent-sdk"}:
             # Stream the agent's live actions to the run console.
             adapter_kwargs["on_event"] = emit
 
@@ -592,9 +663,11 @@ def start_run(run_id: str) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}:pause")
-def pause_run(run_id: str) -> JSONResponse:
+def pause_run(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Request a cooperative pause after the currently active node."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     from mergegate.orchestrator import runner
 
     try:
@@ -605,9 +678,11 @@ def pause_run(run_id: str) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}:resume")
-def resume_run(run_id: str) -> JSONResponse:
+def resume_run(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Release a cooperatively paused run."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     from mergegate.orchestrator import runner
 
     if record.run.status != RunStatus.PAUSED:
@@ -623,9 +698,11 @@ def resume_run(run_id: str) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}:stop")
-def stop_run(run_id: str) -> JSONResponse:
+def stop_run(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Cancel a non-terminal run and discard an unmerged final attempt."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     from mergegate.orchestrator import runner
 
     was_awaiting_gate = record.run.status == RunStatus.AWAITING_GATE
@@ -658,9 +735,11 @@ def stop_run(run_id: str) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}/gate:approve")
-def approve_gate(run_id: str) -> JSONResponse:
+def approve_gate(
+    run_id: str, user: CurrentUser | None = Depends(optional_current_user)
+) -> JSONResponse:
     """Approve the final merge gate, driving the run to SUCCESS."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     try:
         gates.approve_merge(record.run)
     except gates.GateError as exc:
@@ -678,9 +757,13 @@ def approve_gate(run_id: str) -> JSONResponse:
 
 
 @router.post("/runs/{run_id}/gate:reject")
-def reject_gate(run_id: str, request: RejectRequest) -> JSONResponse:
+def reject_gate(
+    run_id: str,
+    request: RejectRequest,
+    user: CurrentUser | None = Depends(optional_current_user),
+) -> JSONResponse:
     """Reject the final merge gate, driving the run to HUMAN_REJECTED."""
-    record = _require_record(run_id)
+    record = _require_record(run_id, user)
     try:
         gates.reject_merge(record.run, reason=request.reason)
     except gates.GateError as exc:

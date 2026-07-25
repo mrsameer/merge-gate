@@ -164,4 +164,21 @@ describe("createApiClient", () => {
       expect.anything(),
     );
   });
+
+  it("uses the short-lived session token for authenticated requests", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ authenticated: false }));
+    const client = createApiClient({
+      fetch: fetchMock,
+      accessToken: () => "session-token",
+    });
+
+    await client.getSession();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/auth/session",
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: "Bearer session-token" }),
+      }),
+    );
+  });
 });

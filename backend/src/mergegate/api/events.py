@@ -18,8 +18,11 @@ from dataclasses import dataclass
 
 import anyio
 from anyio.streams.memory import MemoryObjectSendStream
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
+
+from mergegate.api.store import store
+from mergegate.auth.store import get_auth_store
 
 _REPLAY_BUFFER_SIZE = 1000
 
@@ -88,6 +91,14 @@ router = APIRouter()
 @router.get("/runs/{run_id}/events")
 async def stream_run_events(run_id: str, request: Request) -> EventSourceResponse:
     """SSE stream of a run's events, reconnectable via `Last-Event-ID`."""
+    record = store.get_run(run_id)
+    if record is not None and record.owner_id is not None:
+        ticket = request.query_params.get("ticket")
+        ticket_owner = (
+            get_auth_store().consume_event_ticket(ticket, run_id) if ticket else None
+        )
+        if ticket_owner != record.owner_id:
+            raise HTTPException(status_code=404, detail=f"run {run_id!r} not found")
     query_last_event_id = (
         request.query_params.get("last_event_id")
         if "query_string" in request.scope

@@ -337,6 +337,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
   const policy = useAppStore((s) => s.policy);
 
   const [repoRef, setRepoRef] = useState(DEFAULT_REPO_REF);
+  const [githubRepository, setGithubRepository] = useState("");
   const [provider, setProvider] = useState("scripted");
   const [model, setModel] = useState("");
   const [location, setLocation] = useState("global");
@@ -371,6 +372,15 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
         budgets: DEFAULT_BUDGETS,
       });
       setRun(created);
+    });
+
+  const handleConnectRepository = () =>
+    guard(async () => {
+      const fullName = githubRepository.trim();
+      if (!fullName) return;
+      await client.connectRepository(fullName);
+      setRepoRef(`github:${fullName}`);
+      setNotice(`Connected ${fullName}. It will be used for the new run.`);
     });
 
   const handleGenerate = () =>
@@ -482,6 +492,27 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
           onChange={(e) => setRepoRef(e.target.value)}
         />
       </label>
+
+      {runId === null && (
+        <div className="inspector-github-repository">
+          <label className="inspector-field">
+            <span>GitHub repository</span>
+            <input
+              aria-label="GitHub repository"
+              value={githubRepository}
+              placeholder="owner/repository"
+              onChange={(event) => setGithubRepository(event.target.value)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy || !githubRepository.trim()}
+            onClick={handleConnectRepository}
+          >
+            Attach GitHub repository
+          </button>
+        </div>
+      )}
 
       <label className="inspector-field">
         <span>Provider</span>

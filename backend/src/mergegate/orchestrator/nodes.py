@@ -596,14 +596,14 @@ def drive_run(ctx: RunContext) -> None:
             )
             discard_worktree(active_worktree)
             active_worktree = None
-    except Exception:
+    except Exception as exc:
         # Principle IV: no exception path may leave the run non-terminal or
         # resolve it to SUCCESS.
         if not runner.is_terminal(run.status):
             _terminate(
                 ctx,
                 RunStatus.NO_PROGRESS,
-                reason="unexpected orchestration failure",
+                reason=f"unexpected orchestration failure ({type(exc).__name__})",
                 active_worktree=active_worktree,
                 baseline_status=baseline_status,
             )

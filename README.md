@@ -185,6 +185,46 @@ Deploy the frontend to Vercel with `frontend` as the project root. Set
 `VITE_API_BASE_URL` to the Railway backend URL with `/api` appended, for
 example `https://mergegate-production.up.railway.app/api`.
 
+### User sign-in and credential connections
+
+The public app supports GitHub OAuth sign-in, user-owned repository clones,
+and encrypted Gemini API keys or Claude Code OAuth tokens. Provider tokens
+are submitted over HTTPS directly to the backend, encrypted with Fernet before
+they reach SQLite, and are never returned by the API or sent to Vercel. A
+connected repository run receives only its owner's decrypted provider token;
+it does not fall back to shared `.env` credentials.
+
+Before enabling the account button, create a GitHub OAuth App and configure:
+
+| GitHub OAuth field | Value |
+| --- | --- |
+| Homepage URL | `https://merge-gate-beta.vercel.app` |
+| Authorization callback URL | `https://merge-gate-production.up.railway.app/api/auth/github/callback` |
+
+Add these Railway service variables (never add them to Vercel):
+
+```text
+GITHUB_OAUTH_CLIENT_ID=...
+GITHUB_OAUTH_CLIENT_SECRET=...
+MERGEGATE_PUBLIC_API_URL=https://merge-gate-production.up.railway.app
+MERGEGATE_FRONTEND_URL=https://merge-gate-beta.vercel.app
+MERGEGATE_CREDENTIAL_ENCRYPTION_KEY=<Fernet key>
+MERGEGATE_DATA_DIR=/data
+```
+
+Generate the Fernet key locally without sharing it:
+
+```bash
+backend/.venv/bin/python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+```
+
+Attach a Railway Volume at `/data` before saving credentials. Without both the
+volume and encryption key, the backend refuses GitHub sign-in and credential
+storage rather than risking an ephemeral or unencrypted token. Once signed
+in, use the account button to save a Gemini API key, Claude Code OAuth token,
+or fine-grained GitHub PAT; enter `owner/repository` in the Input inspector
+and select **Attach GitHub repository**.
+
 ## Vertex AI Gemini CLI
 
 The Gemini adapter runs the installed `gemini` CLI headlessly inside each

@@ -82,6 +82,15 @@
   gap: 0.5rem;
 }
 
+.inspector-github-repository {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 0.4rem;
+}
+
 .inspector-error {
   font-size: 0.8rem;
   color: var(--edge-failure, #dc2626);

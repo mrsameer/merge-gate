@@ -35,6 +35,13 @@ CONTRADICTORY_OBJECTIVE = (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolate_live_provider_defaults(monkeypatch):
+    """Keep deterministic demo tests independent of an operator's backend/.env."""
+    monkeypatch.delenv("MERGEGATE_PROVIDER", raising=False)
+    monkeypatch.delenv("MERGEGATE_MODEL", raising=False)
+
+
 @pytest.fixture()
 def demo_repo() -> Path:
     """Filesystem path to the demo-repo fixture targeted by every run."""
