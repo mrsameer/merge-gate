@@ -29,6 +29,5 @@ ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8000
-VOLUME ["/data"]
 
 CMD ["sh", "-c", "uvicorn mergegate.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
