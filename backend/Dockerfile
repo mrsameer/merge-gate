@@ -7,6 +7,9 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y git \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --gid 10001 mergegate \
+    && useradd --uid 10001 --gid mergegate --create-home --shell /usr/sbin/nologin mergegate
+
 COPY --from=uv /uv /uvx /usr/local/bin/
 
 WORKDIR /app
@@ -20,7 +23,9 @@ RUN uv sync --frozen --no-dev \
     && git -C /demo-repo config user.email "demo@mergegate.local" \
     && git -C /demo-repo config user.name "MergeGate Demo" \
     && git -C /demo-repo add . \
-    && git -C /demo-repo commit -m "Baseline demo repository"
+    && git -C /demo-repo commit -m "Baseline demo repository" \
+    && mkdir -p /data \
+    && chown -R mergegate:mergegate /app /data /demo-repo
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     MERGEGATE_DATA_DIR="/data" \
@@ -30,4 +35,4 @@ ENV PATH="/app/.venv/bin:${PATH}" \
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "uvicorn mergegate.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", "chown -R mergegate:mergegate /data && exec runuser -u mergegate --preserve-environment -- sh -c 'uvicorn mergegate.api.main:app --host 0.0.0.0 --port ${PORT:-8000}'"]
