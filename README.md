@@ -152,26 +152,27 @@ The Gemini adapter runs the installed `gemini` CLI headlessly inside each
 attempt worktree. For Vertex AI, authenticate with Application Default
 Credentials (ADC); no API key belongs in this repository.
 
+The backend automatically loads `backend/.env` at startup. Copy
+[`backend/.env.example`](backend/.env.example) to `backend/.env`, then place
+your local provider configuration there. `.env` is ignored by Git and real
+shell environment variables take precedence.
+
 Run the interactive login only when ADC is not already configured:
 
 ```bash
 gcloud auth application-default login
 ```
 
-In the shell that starts the backend, set the Vertex routing configuration:
+Set the Vertex routing configuration in `backend/.env`:
 
 ```bash
-export GOOGLE_GENAI_USE_VERTEXAI=true
-export GOOGLE_CLOUD_PROJECT="your-google-cloud-project"
-export GOOGLE_CLOUD_LOCATION=asia-south1
-gcloud auth application-default print-access-token >/dev/null
-
-cd backend
-uv sync --frozen
-uv run uvicorn mergegate.api.main:app --reload --port 8000
+GOOGLE_GENAI_USE_VERTEXAI=true
+GOOGLE_CLOUD_PROJECT="your-google-cloud-project"
+GOOGLE_CLOUD_LOCATION=asia-south1
 ```
 
-Start the frontend normally. In the Input inspector choose `Gemini CLI`, set
+Verify ADC once with `gcloud auth application-default print-access-token
+>/dev/null`, then start the backend normally. In the Input inspector choose `Gemini CLI`, set
 the model to `gemini-2.5-flash`, and only then create the run. The provider and
 model are frozen onto that run. The acceptance engine remains LLM-free: a
 Gemini failure is surfaced as failure or a safe stop and is never converted to
