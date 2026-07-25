@@ -22,6 +22,7 @@ from mergegate.harness.gemini import (
     GEMINI_AUTH_ENV_VARS,
     GeminiHarnessAdapter,
     RequestThrottle,
+    _parse_usage,
 )
 from mergegate.models.attempt import StructuredFeedback
 from mergegate.workspace.worktree import Worktree, create_worktree
@@ -115,6 +116,34 @@ def test_propose_changes_edits_the_isolated_worktree_and_maps_usage(
     assert "print('added')" in result.diff
     assert result.tokens == 123
     assert result.model_calls == 2
+    assert result.usd == pytest.approx(0.000355)
+
+
+def test_parse_usage_estimates_flash_cost_from_cached_and_output_tokens() -> None:
+    stdout = json.dumps(
+        {
+            "stats": {
+                "models": {
+                    "gemini-2.5-flash": {
+                        "tokens": {
+                            "input": 90_000,
+                            "prompt": 100_000,
+                            "cached": 10_000,
+                            "candidates": 20_000,
+                            "total": 120_000,
+                        },
+                        "api": {"totalRequests": 1},
+                    }
+                }
+            }
+        }
+    )
+
+    tokens, model_calls, usd = _parse_usage(stdout)
+
+    assert tokens == 120_000
+    assert model_calls == 1
+    assert usd == pytest.approx(0.0773)
 
 
 def test_uses_headless_yolo_json_mode_and_includes_model_and_feedback(

@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,23 @@ GEMINI_AUTH_ENV_VARS = (
     "GOOGLE_CLOUD_PROJECT",
     "GOOGLE_CLOUD_LOCATION",
 )
+
+
+@dataclass(frozen=True)
+class GeminiModelPricing:
+    """Standard Gemini list prices, expressed as USD per million tokens."""
+
+    input_per_million: float
+    cached_input_per_million: float
+    output_per_million: float
+
+
+# Gemini CLI reports token usage but not a monetary total. These standard
+# non-batch rates cover the models exposed by the MergeGate workflow editor.
+GEMINI_MODEL_PRICING = {
+    "gemini-2.5-flash": GeminiModelPricing(0.30, 0.03, 2.50),
+    "gemini-2.5-pro": GeminiModelPricing(1.25, 0.125, 10.00),
+}
 
 
 class RequestThrottle:
@@ -124,42 +142,83 @@ def _as_int(value: Any) -> int:
         return 0
 
 
-def _parse_usage(stdout: str) -> tuple[int, int]:
+def _pricing_for_model(model: str) -> GeminiModelPricing | None:
+    """Return the standard list pricing for a Gemini model or alias."""
+    normalized = model.lower()
+    for name, pricing in GEMINI_MODEL_PRICING.items():
+        if normalized == name or normalized.startswith(f"{name}-"):
+            return pricing
+    return None
+
+
+def _estimate_usd(model: str, token_metrics: dict[str, Any]) -> float:
+    """Estimate standard API spend from Gemini CLI's token breakdown.
+
+    The CLI's ``input`` field excludes cache reads, while ``prompt`` includes
+    them. Older CLI versions expose ``output`` instead of ``candidates``.
+    Unknown models deliberately return zero rather than applying an incorrect
+    price table.
+    """
+    pricing = _pricing_for_model(model)
+    if pricing is None:
+        return 0.0
+
+    cached_tokens = _as_int(token_metrics.get("cached"))
+    if "input" in token_metrics:
+        input_tokens = _as_int(token_metrics.get("input"))
+    else:
+        input_tokens = max(0, _as_int(token_metrics.get("prompt")) - cached_tokens)
+    output_tokens = _as_int(
+        token_metrics.get("candidates", token_metrics.get("output"))
+    )
+    return (
+        input_tokens * pricing.input_per_million
+        + cached_tokens * pricing.cached_input_per_million
+        + output_tokens * pricing.output_per_million
+    ) / 1_000_000
+
+
+def _parse_usage(stdout: str) -> tuple[int, int, float]:
     """Read Gemini CLI's JSON metrics without trusting output for edits.
 
-    Current CLI JSON output exposes ``stats.models.<model>.tokens.total`` and
-    ``api.totalRequests``. The fallback input/output sum makes this resilient
-    to older CLI releases while keeping usage accounting best-effort.
+    Current CLI JSON output exposes ``stats.models.<model>.tokens`` and
+    ``api.totalRequests``. The token categories also allow a standard-rate
+    USD estimate for supported Gemini models because the CLI itself omits one.
     """
     try:
         payload = json.loads(stdout)
     except json.JSONDecodeError:
-        return 0, 0
+        return 0, 0, 0.0
     if not isinstance(payload, dict):
-        return 0, 0
+        return 0, 0, 0.0
     stats = payload.get("stats")
     models = stats.get("models") if isinstance(stats, dict) else None
     if not isinstance(models, dict):
-        return 0, 0
+        return 0, 0, 0.0
 
     tokens = 0
     model_calls = 0
-    for metrics in models.values():
+    usd = 0.0
+    for model, metrics in models.items():
         if not isinstance(metrics, dict):
             continue
         token_metrics = metrics.get("tokens")
         if isinstance(token_metrics, dict):
             total = _as_int(token_metrics.get("total"))
             tokens += total or (
-                _as_int(token_metrics.get("input"))
-                + _as_int(token_metrics.get("output"))
+                _as_int(token_metrics.get("prompt", token_metrics.get("input")))
+                + _as_int(
+                    token_metrics.get("candidates", token_metrics.get("output"))
+                )
             )
+            if isinstance(model, str):
+                usd += _estimate_usd(model, token_metrics)
         api_metrics = metrics.get("api")
         if isinstance(api_metrics, dict):
             model_calls += _as_int(
                 api_metrics.get("totalRequests", api_metrics.get("requests"))
             )
-    return tokens, model_calls
+    return tokens, model_calls, usd
 
 
 class GeminiHarnessAdapter(HarnessAdapter):
@@ -244,13 +303,12 @@ class GeminiHarnessAdapter(HarnessAdapter):
             raise HarnessError(f"Gemini CLI exited with {result.exit_code}{suffix}")
 
         diff = capture_diff(workspace)
-        tokens, model_calls = _parse_usage(result.stdout)
+        tokens, model_calls, usd = _parse_usage(result.stdout)
         return HarnessResult(
             diff=diff.patch,
             changed_files=diff.changed_files,
             log=result.stdout + result.stderr,
             tokens=tokens,
             model_calls=model_calls,
-            # OAuth-backed CLI usage does not report per-call monetary cost.
-            usd=0.0,
+            usd=usd,
         )
