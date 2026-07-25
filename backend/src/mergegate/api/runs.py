@@ -119,6 +119,7 @@ class CreateRunRequest(BaseModel):
     repo_ref: str
     provider: str | None = None
     model: str | None = None
+    location: str = "global"
     policy: Policy = Field(
         default_factory=lambda: Policy(
             protected_paths=["app/auth/**", "tests/acceptance/**"],
@@ -320,6 +321,7 @@ def create_run(request: CreateRunRequest) -> JSONResponse:
         repo_ref=_resolve_repo_ref(request.repo_ref),
         provider=request.provider,
         model=request.model,
+        location=request.location.strip() or "global",
         policy=request.policy,
         status=RunStatus.AWAITING_GATE,
         budgets=request.budgets,
@@ -544,6 +546,8 @@ def start_run(run_id: str) -> JSONResponse:
         adapter_kwargs = {"changes": demo_idempotency_changes()}
     elif provider in {"anthropic", "claude-agent-sdk", "gemini", "aider", "codex"}:
         adapter_kwargs = {"model": selection.model}
+        if provider == "gemini":
+            adapter_kwargs["location"] = run.location
         if provider == "anthropic":
             # Stream the agent's live actions to the run console.
             adapter_kwargs["on_event"] = emit

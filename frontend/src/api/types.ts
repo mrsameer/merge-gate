@@ -126,6 +126,7 @@ export interface Run {
   repo_ref: string;
   provider?: string | null;
   model?: string | null;
+  location?: string;
   policy?: Policy;
   status: RunStatus;
   budgets: Budget;

@@ -80,7 +80,7 @@ def test_readme_documents_vertex_adc_terminal_states_and_limitations() -> None:
         "gcloud auth application-default login",
         "GOOGLE_GENAI_USE_VERTEXAI=true",
         "GOOGLE_CLOUD_PROJECT",
-        "GOOGLE_CLOUD_LOCATION=asia-south1",
+            "GOOGLE_CLOUD_LOCATION=global",
         "gemini-2.5-flash",
         "CLARIFICATION_REQUIRED",
         "HUMAN_REJECTED",

@@ -141,6 +141,7 @@ export function createApiClient(options: ApiClientOptions = {}) {
       repo_ref: string;
       provider?: string;
       model?: string;
+      location?: string;
       policy?: Policy;
       budgets: Budget;
     }) => call<Run>("/runs", { method: "POST", body: JSON.stringify(body) }),

@@ -339,6 +339,7 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
   const [repoRef, setRepoRef] = useState(DEFAULT_REPO_REF);
   const [provider, setProvider] = useState("scripted");
   const [model, setModel] = useState("");
+  const [location, setLocation] = useState("global");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -363,6 +364,9 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
         repo_ref: repoRef,
         provider,
         ...(model.trim() ? { model: model.trim() } : {}),
+        ...(provider === "gemini"
+          ? { location: location.trim() || "global" }
+          : {}),
         policy,
         budgets: DEFAULT_BUDGETS,
       });
@@ -509,6 +513,19 @@ function InputNodeInspector({ client }: { client: ApiClient }) {
           onChange={(e) => setModel(e.target.value)}
         />
       </label>
+
+      {(run?.provider ?? provider) === "gemini" && (
+        <label className="inspector-field">
+          <span>Vertex location</span>
+          <input
+            aria-label="Vertex location"
+            value={run?.location ?? location}
+            placeholder="global"
+            disabled={runId !== null}
+            onChange={(e) => setLocation(e.target.value)}
+          />
+        </label>
+      )}
 
       <button
         type="button"

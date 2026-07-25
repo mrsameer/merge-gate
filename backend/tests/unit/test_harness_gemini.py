@@ -146,6 +146,25 @@ def test_parse_usage_estimates_flash_cost_from_cached_and_output_tokens() -> Non
     assert usd == pytest.approx(0.0773)
 
 
+def test_parse_usage_uses_standard_rate_for_an_unrecognized_model() -> None:
+    stdout = json.dumps(
+        {
+            "stats": {
+                "models": {
+                    "gemini-future-model": {
+                        "tokens": {"input": 1_000_000, "output": 1_000_000},
+                        "api": {"totalRequests": 1},
+                    }
+                }
+            }
+        }
+    )
+
+    _, _, usd = _parse_usage(stdout)
+
+    assert usd == pytest.approx(2.8)
+
+
 def test_uses_headless_yolo_json_mode_and_includes_model_and_feedback(
     monkeypatch: pytest.MonkeyPatch,
     workspace: Worktree,
@@ -207,7 +226,9 @@ def test_forwards_vertex_auth_environment(
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "asia-south1")
 
-    adapter = GeminiHarnessAdapter(executable=[sys.executable, str(fake_gemini)])
+    adapter = GeminiHarnessAdapter(
+        executable=[sys.executable, str(fake_gemini)], location="asia-south1"
+    )
     adapter.propose_changes("objective", None, workspace)
 
     assert json.loads(env_file.read_text()) == {
@@ -218,6 +239,22 @@ def test_forwards_vertex_auth_environment(
         "GOOGLE_CLOUD_LOCATION": "asia-south1",
     }
     assert "GOOGLE_GENAI_USE_VERTEXAI" in GEMINI_AUTH_ENV_VARS
+
+
+def test_defaults_vertex_location_to_global(
+    monkeypatch: pytest.MonkeyPatch,
+    workspace: Worktree,
+    fake_gemini: Path,
+    tmp_path: Path,
+) -> None:
+    env_file = tmp_path / "gemini-auth.json"
+    monkeypatch.setenv("FAKE_GEMINI_AUTH_FILE", str(env_file))
+
+    GeminiHarnessAdapter(executable=[sys.executable, str(fake_gemini)]).propose_changes(
+        "objective", None, workspace
+    )
+
+    assert json.loads(env_file.read_text())["GOOGLE_CLOUD_LOCATION"] == "global"
 
 
 def test_missing_executable_and_failed_cli_raise_harness_error(

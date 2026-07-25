@@ -175,6 +175,9 @@ describe("InspectorPanel", () => {
     fireEvent.change(screen.getByLabelText("Model"), {
       target: { value: "gemini-2.5-pro" },
     });
+    fireEvent.change(screen.getByLabelText("Vertex location"), {
+      target: { value: "asia-south1" },
+    });
     fireEvent.click(screen.getByRole("button", { name: /create run/i }));
 
     await waitFor(() =>
@@ -182,6 +185,7 @@ describe("InspectorPanel", () => {
         expect.objectContaining({
           provider: "gemini",
           model: "gemini-2.5-pro",
+          location: "asia-south1",
         }),
       ),
     );

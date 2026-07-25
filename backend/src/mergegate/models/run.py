@@ -26,6 +26,7 @@ class Run(BaseModel):
     repo_ref: str
     provider: str | None = None
     model: str | None = None
+    location: str = "global"
     policy: Policy = Field(default_factory=Policy)
     status: RunStatus
     budgets: Budget

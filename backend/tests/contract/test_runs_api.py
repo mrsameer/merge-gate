@@ -58,6 +58,7 @@ def test_create_run_preserves_explicit_provider_and_model(
             "repo_ref": "demo-repo",
             "provider": "gemini",
             "model": "gemini-2.5-pro",
+            "location": "us-central1",
             "budgets": {
                 "max_attempts": 3,
                 "max_wall_clock_s": 300,
@@ -69,6 +70,7 @@ def test_create_run_preserves_explicit_provider_and_model(
     assert response.status_code == 201, response.text
     assert response.json()["provider"] == "gemini"
     assert response.json()["model"] == "gemini-2.5-pro"
+    assert response.json()["location"] == "us-central1"
 
 
 def test_ui_default_workflow_is_available_without_a_prior_workflow_request(

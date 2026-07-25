@@ -37,6 +37,7 @@ DEFAULT_TIMEOUT_S = 600.0
 DEFAULT_MIN_REQUEST_INTERVAL_S = 10.0
 DEFAULT_MAX_TURNS = 8
 DEFAULT_MAX_TIME_MINUTES = 5
+DEFAULT_VERTEX_LOCATION = "global"
 GEMINI_API_KEY_ENV_VAR = "GEMINI_API_KEY"
 GEMINI_AUTH_ENV_VARS = (
     GEMINI_API_KEY_ENV_VAR,
@@ -62,6 +63,7 @@ GEMINI_MODEL_PRICING = {
     "gemini-2.5-flash": GeminiModelPricing(0.30, 0.03, 2.50),
     "gemini-2.5-pro": GeminiModelPricing(1.25, 0.125, 10.00),
 }
+DEFAULT_GEMINI_PRICING = GEMINI_MODEL_PRICING["gemini-2.5-flash"]
 
 
 class RequestThrottle:
@@ -142,13 +144,13 @@ def _as_int(value: Any) -> int:
         return 0
 
 
-def _pricing_for_model(model: str) -> GeminiModelPricing | None:
-    """Return the standard list pricing for a Gemini model or alias."""
+def _pricing_for_model(model: str) -> GeminiModelPricing:
+    """Return pricing for a known model or the standard Gemini fallback."""
     normalized = model.lower()
     for name, pricing in GEMINI_MODEL_PRICING.items():
         if normalized == name or normalized.startswith(f"{name}-"):
             return pricing
-    return None
+    return DEFAULT_GEMINI_PRICING
 
 
 def _estimate_usd(model: str, token_metrics: dict[str, Any]) -> float:
@@ -156,13 +158,10 @@ def _estimate_usd(model: str, token_metrics: dict[str, Any]) -> float:
 
     The CLI's ``input`` field excludes cache reads, while ``prompt`` includes
     them. Older CLI versions expose ``output`` instead of ``candidates``.
-    Unknown models deliberately return zero rather than applying an incorrect
-    price table.
+    Unrecognized model IDs retain a standard Gemini estimate, so operators can
+    use newly released models without losing cost tracking.
     """
     pricing = _pricing_for_model(model)
-    if pricing is None:
-        return 0.0
-
     cached_tokens = _as_int(token_metrics.get("cached"))
     if "input" in token_metrics:
         input_tokens = _as_int(token_metrics.get("input"))
@@ -235,6 +234,7 @@ class GeminiHarnessAdapter(HarnessAdapter):
         throttle: RequestThrottle | None = None,
         max_turns: int = DEFAULT_MAX_TURNS,
         max_time_minutes: int = DEFAULT_MAX_TIME_MINUTES,
+        location: str = DEFAULT_VERTEX_LOCATION,
     ) -> None:
         self._executable = _as_argv(executable)
         self._model = model
@@ -249,6 +249,7 @@ class GeminiHarnessAdapter(HarnessAdapter):
         self._throttle = throttle or _REQUEST_THROTTLE
         self._max_turns = max_turns
         self._max_time_minutes = max_time_minutes
+        self._location = location.strip() or DEFAULT_VERTEX_LOCATION
 
     def propose_changes(
         self,
@@ -282,6 +283,7 @@ class GeminiHarnessAdapter(HarnessAdapter):
                     for name in GEMINI_AUTH_ENV_VARS
                     if (value := os.environ.get(name))
                 },
+                "GOOGLE_CLOUD_LOCATION": self._location,
             }
             if self._api_key:
                 extra_env[GEMINI_API_KEY_ENV_VAR] = self._api_key

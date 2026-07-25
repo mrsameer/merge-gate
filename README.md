@@ -146,7 +146,7 @@ passing Track B proof or Gemini CLI. Extending the backend image with the target
 repository's test tools is required before claiming a passing containerized
 acceptance run; never describe a missing tool as success.
 
-## Vertex AI Gemini 2.5 Flash in Mumbai
+## Vertex AI Gemini CLI
 
 The Gemini adapter runs the installed `gemini` CLI headlessly inside each
 attempt worktree. For Vertex AI, authenticate with Application Default
@@ -168,13 +168,14 @@ Set the Vertex routing configuration in `backend/.env`:
 ```bash
 GOOGLE_GENAI_USE_VERTEXAI=true
 GOOGLE_CLOUD_PROJECT="your-google-cloud-project"
-GOOGLE_CLOUD_LOCATION=asia-south1
+GOOGLE_CLOUD_LOCATION=global
 ```
 
 Verify ADC once with `gcloud auth application-default print-access-token
 >/dev/null`, then start the backend normally. In the Input inspector choose `Gemini CLI`, set
-the model to `gemini-2.5-flash`, and only then create the run. The provider and
-model are frozen onto that run. The acceptance engine remains LLM-free: a
+the model to any Gemini model ID (for example, `gemini-2.5-flash`), and optionally enter a Vertex location. The
+location defaults to `global`; use a regional name such as `asia-south1` when
+needed. The provider, model, and location are frozen onto that run. The acceptance engine remains LLM-free: a
 Gemini failure is surfaced as failure or a safe stop and is never converted to
 success.
 
