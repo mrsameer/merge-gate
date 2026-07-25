@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -26,6 +27,12 @@ _IGNORED_DIRECTORIES = {
 _MAX_FILE_SIZE_BYTES = 256 * 1024
 _MAX_FILES = 500
 _ROUTE_PATTERN = re.compile(r"@\w+\.(?:get|post|put|patch|delete)\(\s*[\"']([^\"']+)")
+_TEST_PATH_PATTERN = re.compile(
+    r"(?:^|[\s`\"'])(tests/[A-Za-z0-9_./-]+\.py)(?=$|[\s`\"'.,:;)])"
+)
+_PYTHON_PATH_PATTERN = re.compile(
+    r"(?:^|[\s`\"'])([A-Za-z0-9_./-]+\.py)(?=$|[\s`\"'.,:;)])"
+)
 
 
 class RepositoryMappingError(ValueError):
@@ -124,6 +131,12 @@ def generate_hybrid_contract(
             "cannot generate grounded criteria without source files"
         )
 
+    order_sources = tuple(path for path in source_paths if "order" in path.lower())
+    idempotency_objective = "idempot" in objective.lower() and bool(order_sources)
+    task_test_path = _task_test_path(objective)
+    if idempotency_objective and task_test_path is None:
+        task_test_path = "tests/test_idempotency.py"
+
     criteria: list[Criterion] = [
         Criterion(
             id="feature-exists",
@@ -131,38 +144,44 @@ def generate_hybrid_contract(
             priority=1,
             description=f"Implement the requested behavior: {objective.strip()}",
             source_paths=[source_paths[0]],
+            command="python -m compileall -q .",
+            expected_exit_code=0,
         )
     ]
 
     test_paths = repo_map.paths_for("test")
     if test_paths:
-        criteria.extend(
-            (
-                Criterion(
-                    id="existing-tests",
-                    type=CriterionType.COMMAND,
-                    priority=2,
-                    description="Existing repository tests pass.",
-                    source_paths=list(test_paths),
-                    command="pytest",
-                    expected_exit_code=0,
-                ),
-                Criterion(
-                    id="new-tests",
-                    type=CriterionType.COMMAND,
-                    priority=3,
-                    description="Task-specific tests are added and pass.",
-                    source_paths=list(test_paths),
-                    command="pytest",
-                    expected_exit_code=0,
-                    baseline_expected=PassFail.FAIL,
-                    result_expected=PassFail.PASS,
-                ),
+        criteria.append(
+            Criterion(
+                id="existing-tests",
+                type=CriterionType.COMMAND,
+                priority=2,
+                description="Existing repository tests pass.",
+                source_paths=list(test_paths),
+                command=_pytest_command(test_paths),
+                expected_exit_code=0,
             )
         )
 
-    order_sources = tuple(path for path in source_paths if "order" in path.lower())
-    if "idempot" in objective.lower() and order_sources:
+    if task_test_path is not None:
+        criteria.append(
+            Criterion(
+                id="new-tests",
+                type=CriterionType.COMMAND,
+                priority=3,
+                description=(
+                    f"Task-specific tests in {task_test_path} are added and pass."
+                ),
+                source_paths=list(test_paths),
+                command=_pytest_command((task_test_path,)),
+                expected_exit_code=0,
+                baseline_expected=PassFail.FAIL,
+                result_expected=PassFail.PASS,
+                params={"task_test_path": task_test_path},
+            )
+        )
+
+    if idempotency_objective:
         criteria.extend(
             (
                 Criterion(
@@ -200,6 +219,34 @@ def generate_hybrid_contract(
         mode=ContractMode.HYBRID,
         criteria=criteria,
     )
+
+
+def _task_test_path(objective: str) -> str | None:
+    """Infer an explicit task-test path from the objective when possible.
+
+    A task-specific test must be red on the baseline and green on the result.
+    Prefer a path the operator named directly (for example
+    ``tests/test_reverse_text.py``); otherwise derive the standard pytest path
+    from a named Python module such as ``reverse_text.py``.
+    """
+    explicit = _TEST_PATH_PATTERN.search(objective)
+    if explicit:
+        return explicit.group(1)
+
+    for match in _PYTHON_PATH_PATTERN.finditer(objective):
+        source_path = match.group(1)
+        if source_path.startswith("tests/"):
+            continue
+        stem = Path(source_path).stem
+        if stem:
+            return f"tests/test_{stem}.py"
+    return None
+
+
+def _pytest_command(paths: tuple[str, ...]) -> str:
+    """Build a deterministic pytest command for only the intended test files."""
+    rendered_paths = " ".join(shlex.quote(path) for path in paths)
+    return f"python -m pytest {rendered_paths} -q"
 
 
 def _classify_path(relative_path: str) -> str | None:

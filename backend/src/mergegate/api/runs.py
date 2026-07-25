@@ -108,6 +108,12 @@ _CRITERION_PLAN: dict[str, tuple[CheckStep, str]] = {
     ),
 }
 
+_GENERIC_CRITERION_STEPS: dict[str, CheckStep] = {
+    "feature-exists": CheckStep.BUILD,
+    "existing-tests": CheckStep.EXISTING_TESTS,
+    "new-tests": CheckStep.NEW_TESTS,
+}
+
 
 # ---------------------------------------------------------------------------
 # Request bodies
@@ -182,17 +188,37 @@ def _specialize_criteria(contract: Contract) -> Contract:
     known criterion id to a step and an environment-runnable command. Unknown
     ids are left as-is (evaluated outside the ordered pipeline).
     """
+    is_idempotency_contract = any(
+        criterion.id == "idempotent-order-reuse" for criterion in contract.criteria
+    )
     specialized: list[Criterion] = []
     for criterion in contract.criteria:
-        plan = _CRITERION_PLAN.get(criterion.id)
-        if plan is None:
-            specialized.append(criterion)
-            continue
-        step, command = plan
+        plan = _CRITERION_PLAN.get(criterion.id) if is_idempotency_contract else None
+        if plan is not None:
+            step, command = plan
+        else:
+            step = _GENERIC_CRITERION_STEPS.get(criterion.id)
+            if step is None:
+                specialized.append(criterion)
+                continue
+            command = _current_python_command(criterion.command)
         specialized.append(
             criterion.model_copy(update={"step": step, "command": command})
         )
     return contract.model_copy(update={"criteria": specialized})
+
+
+def _current_python_command(command: str | None) -> str | None:
+    """Run generated Python commands with the control plane's interpreter.
+
+    The backend's virtual environment already contains pytest for the demo
+    repository. Replacing a portable ``python`` prefix avoids assuming a
+    separate worktree environment while preserving the objective-specific test
+    path generated in ``criteria.generate``.
+    """
+    if command is None or not command.startswith("python "):
+        return command
+    return f'"{_PY}" {command.removeprefix("python ")}'
 
 
 def _repo_subdir(repo_ref: str) -> str:

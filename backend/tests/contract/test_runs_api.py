@@ -194,6 +194,40 @@ def test_generated_idempotency_checks_do_not_depend_on_test_names(client, run_id
         assert " -k " not in command
 
 
+def test_generated_generic_python_task_uses_objective_test_path(client, workflow_id):
+    created = client.post(
+        "/api/runs",
+        json={
+            "workflow_id": workflow_id,
+            "objective": (
+                "Create reverse_text.py and add tests/test_reverse_text.py to "
+                "verify it reverses strings."
+            ),
+            "repo_ref": "demo-repo",
+            "budgets": {
+                "max_attempts": 3,
+                "max_wall_clock_s": 300,
+                "max_model_calls": 20,
+            },
+        },
+    )
+    assert created.status_code == 201, created.text
+
+    generated = client.post(
+        f"/api/runs/{created.json()['id']}/criteria:generate", json={"mode": "hybrid"}
+    )
+    assert generated.status_code == 200, generated.text
+
+    criteria = {
+        criterion["id"]: criterion for criterion in generated.json()["criteria"]
+    }
+    assert "idempotent-order-reuse" not in criteria
+    assert criteria["new-tests"]["command"].endswith(
+        'pytest tests/test_reverse_text.py -q'
+    )
+    assert criteria["new-tests"]["step"] == "new_tests"
+
+
 # ---------------------------------------------------------------------------
 # PUT /api/runs/{id}/criteria — edit / prioritize before approval
 # ---------------------------------------------------------------------------

@@ -70,6 +70,27 @@ def test_hybrid_contract_is_draft_and_uses_existing_paths(mapped_demo_repo) -> N
     }
 
 
+def test_hybrid_contract_targets_objective_named_test_file(mapped_demo_repo) -> None:
+    contract = generate_hybrid_contract(
+        objective=(
+            "Create reverse_text.py and add tests/test_reverse_text.py to verify "
+            "reverse_text."
+        ),
+        repo_map=mapped_demo_repo,
+        run_id="run-generic",
+        contract_id="contract-generic",
+    )
+
+    criteria = {criterion.id: criterion for criterion in contract.criteria}
+    assert "idempotent-order-reuse" not in criteria
+    assert criteria["new-tests"].command == (
+        "python -m pytest tests/test_reverse_text.py -q"
+    )
+    assert criteria["new-tests"].params == {
+        "task_test_path": "tests/test_reverse_text.py"
+    }
+
+
 def test_approval_is_stable_and_freezes_editing(mapped_demo_repo) -> None:
     draft = generate_hybrid_contract(
         objective="Make POST /orders idempotent",
