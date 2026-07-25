@@ -11,6 +11,7 @@ this adapter intentionally does not handle OAuth tokens itself.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import threading
@@ -20,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from mergegate.acceptance.commands import COMMAND_NOT_FOUND_EXIT_CODE, run_command
+from mergegate.config.environment import load_local_env
 from mergegate.harness.base import (
     HarnessAdapter,
     HarnessError,
@@ -35,6 +37,13 @@ DEFAULT_MIN_REQUEST_INTERVAL_S = 10.0
 DEFAULT_MAX_TURNS = 8
 DEFAULT_MAX_TIME_MINUTES = 5
 GEMINI_API_KEY_ENV_VAR = "GEMINI_API_KEY"
+GEMINI_AUTH_ENV_VARS = (
+    GEMINI_API_KEY_ENV_VAR,
+    "GOOGLE_GENAI_USE_VERTEXAI",
+    "GOOGLE_GENAI_USE_GCA",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_LOCATION",
+)
 
 
 class RequestThrottle:
@@ -188,6 +197,7 @@ class GeminiHarnessAdapter(HarnessAdapter):
         feedback: StructuredFeedback | None,
         workspace: Worktree,
     ) -> HarnessResult:
+        load_local_env()
         self._throttle.wait_for_turn(self._min_request_interval_s)
         argv = [*self._executable, "-p", _build_prompt(objective, feedback)]
         if self._model:
@@ -206,7 +216,14 @@ class GeminiHarnessAdapter(HarnessAdapter):
                 ),
                 encoding="utf-8",
             )
-            extra_env = {"GEMINI_CLI_HOME": cli_home}
+            extra_env = {
+                "GEMINI_CLI_HOME": cli_home,
+                **{
+                    name: value
+                    for name in GEMINI_AUTH_ENV_VARS
+                    if (value := os.environ.get(name))
+                },
+            }
             if self._api_key:
                 extra_env[GEMINI_API_KEY_ENV_VAR] = self._api_key
             result = run_command(

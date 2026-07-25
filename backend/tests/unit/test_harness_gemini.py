@@ -19,6 +19,7 @@ from mergegate.acceptance.commands import run_command
 from mergegate.harness.base import HarnessError, HarnessResult
 from mergegate.harness.gemini import (
     GEMINI_API_KEY_ENV_VAR,
+    GEMINI_AUTH_ENV_VARS,
     GeminiHarnessAdapter,
     RequestThrottle,
 )
@@ -70,6 +71,18 @@ def fake_gemini(tmp_path: Path) -> Path:
                 home = pathlib.Path(os.environ["GEMINI_CLI_HOME"])
                 pathlib.Path(config_file).write_text(
                     (home / "settings.json").read_text()
+                )
+            auth_file = os.environ.get("FAKE_GEMINI_AUTH_FILE")
+            if auth_file:
+                names = [
+                    "GEMINI_API_KEY",
+                    "GOOGLE_GENAI_USE_VERTEXAI",
+                    "GOOGLE_GENAI_USE_GCA",
+                    "GOOGLE_CLOUD_PROJECT",
+                    "GOOGLE_CLOUD_LOCATION",
+                ]
+                pathlib.Path(auth_file).write_text(
+                    json.dumps({name: os.environ.get(name) for name in names})
                 )
             write_file = os.environ.get("FAKE_GEMINI_WRITE_FILE")
             if write_file:
@@ -151,6 +164,31 @@ def test_api_key_is_forwarded_only_as_environment_not_argv(
 
     assert "super-secret-key" not in json.loads(args_file.read_text())
     assert GEMINI_API_KEY_ENV_VAR == "GEMINI_API_KEY"
+
+
+def test_forwards_vertex_auth_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    workspace: Worktree,
+    fake_gemini: Path,
+    tmp_path: Path,
+) -> None:
+    env_file = tmp_path / "gemini-auth.json"
+    monkeypatch.setenv("FAKE_GEMINI_AUTH_FILE", str(env_file))
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "test-project")
+    monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "asia-south1")
+
+    adapter = GeminiHarnessAdapter(executable=[sys.executable, str(fake_gemini)])
+    adapter.propose_changes("objective", None, workspace)
+
+    assert json.loads(env_file.read_text()) == {
+        "GEMINI_API_KEY": None,
+        "GOOGLE_GENAI_USE_VERTEXAI": "true",
+        "GOOGLE_GENAI_USE_GCA": None,
+        "GOOGLE_CLOUD_PROJECT": "test-project",
+        "GOOGLE_CLOUD_LOCATION": "asia-south1",
+    }
+    assert "GOOGLE_GENAI_USE_VERTEXAI" in GEMINI_AUTH_ENV_VARS
 
 
 def test_missing_executable_and_failed_cli_raise_harness_error(
