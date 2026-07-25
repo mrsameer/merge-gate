@@ -4,6 +4,8 @@
 // one page stays open. A full browser refresh creates a new EventSource, so
 // the persisted cursor is also sent as a query fallback.
 
+import { getApiBaseUrl } from "../api/client";
+
 export type RunEventType =
   | "node_status"
   | "harness_output"
@@ -42,14 +44,12 @@ export interface RunEventsClient {
   close: () => void;
 }
 
-const DEFAULT_BASE_URL = "/api";
-
 export function connectRunEvents(
   runId: string,
   handlers: RunEventHandlers,
   options: ConnectRunEventsOptions = {},
 ): RunEventsClient {
-  const baseUrl = options.baseUrl ?? DEFAULT_BASE_URL;
+  const baseUrl = options.baseUrl ?? getApiBaseUrl();
   const eventUrl = `${baseUrl}/runs/${runId}/events`;
   const params = new URLSearchParams();
   if (options.lastEventId !== null && options.lastEventId !== undefined) {

@@ -171,4 +171,25 @@ describe("connectRunEvents", () => {
       "/api/runs/private-run/events?ticket=short-lived-ticket",
     );
   });
+
+  it("uses the configured API host for a deployed frontend", () => {
+    let created: FakeEventSource | undefined;
+
+    connectRunEvents(
+      "private-run",
+      {},
+      {
+        baseUrl: "https://merge-gate-production.up.railway.app/api",
+        ticket: "short-lived-ticket",
+        eventSourceFactory: (url) => {
+          created = new FakeEventSource(url);
+          return created as unknown as EventSource;
+        },
+      },
+    );
+
+    expect(created?.url).toBe(
+      "https://merge-gate-production.up.railway.app/api/runs/private-run/events?ticket=short-lived-ticket",
+    );
+  });
 });
