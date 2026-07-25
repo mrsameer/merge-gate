@@ -12,6 +12,7 @@ sets.
 from __future__ import annotations
 
 from mergegate.config.settings import (
+    CORS_ALLOW_ORIGINS_ENV_VAR,
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_MAX_MODEL_CALLS,
     DEFAULT_MAX_WALL_CLOCK_S,
@@ -24,6 +25,7 @@ from mergegate.config.settings import (
     PROVIDER_ENV_VAR,
     Settings,
     load_settings,
+    load_cors_allow_origins,
     resolve_budget,
     resolve_provider,
 )
@@ -66,6 +68,14 @@ def test_load_settings_ignores_unrelated_env_vars() -> None:
 
     assert settings.provider == DEFAULT_PROVIDER
     assert settings.max_attempts == DEFAULT_MAX_ATTEMPTS
+
+
+def test_load_cors_allow_origins_parses_only_non_empty_origins() -> None:
+    origins = load_cors_allow_origins(
+        {CORS_ALLOW_ORIGINS_ENV_VAR: " https://app.example.com, ,https://preview.example.com "}
+    )
+
+    assert origins == ["https://app.example.com", "https://preview.example.com"]
 
 
 def test_resolve_budget_without_workflow_override_uses_settings() -> None:

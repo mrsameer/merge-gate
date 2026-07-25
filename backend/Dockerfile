@@ -13,7 +13,14 @@ WORKDIR /app
 COPY backend/pyproject.toml backend/uv.lock ./
 COPY backend/src ./src
 COPY specs /specs
-RUN uv sync --frozen --no-dev
+COPY demo-repo /demo-repo
+RUN uv sync --frozen --no-dev \
+    && uv pip install pytest \
+    && git -C /demo-repo init -b main \
+    && git -C /demo-repo config user.email "demo@mergegate.local" \
+    && git -C /demo-repo config user.name "MergeGate Demo" \
+    && git -C /demo-repo add . \
+    && git -C /demo-repo commit -m "Baseline demo repository"
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONPATH="/app/src" \
@@ -22,4 +29,4 @@ ENV PATH="/app/.venv/bin:${PATH}" \
 
 EXPOSE 8000
 
-CMD ["uvicorn", "mergegate.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn mergegate.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -1,0 +1,44 @@
+name: mergegate
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MERGEGATE_SESSION_SECRET: ${MERGEGATE_SESSION_SECRET}
+      MERGEGATE_CREDENTIAL_ENCRYPTION_KEY: ${MERGEGATE_CREDENTIAL_ENCRYPTION_KEY}
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.9-alpine
+    environment:
+      MERGEGATE_DOMAIN: ${MERGEGATE_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

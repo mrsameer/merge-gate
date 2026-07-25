@@ -13,6 +13,7 @@ from http import HTTPStatus
 
 from fastapi import APIRouter, FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -21,10 +22,21 @@ from mergegate.api.events import router as events_router
 from mergegate.api.runs import router as runs_router
 from mergegate.api.workflows import router as workflows_router
 from mergegate.config.environment import load_local_env
+from mergegate.config.settings import load_cors_allow_origins
 
 load_local_env()
 
 app = FastAPI(title="The Talent Hack ------- Autonmous AI Coding Agent.")
+
+cors_allow_origins = load_cors_allow_origins()
+if cors_allow_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_allow_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 api_router = APIRouter(prefix="/api")
 

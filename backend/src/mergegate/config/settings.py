@@ -35,6 +35,7 @@ MODEL_ENV_VAR = "MERGEGATE_MODEL"
 MAX_ATTEMPTS_ENV_VAR = "MERGEGATE_MAX_ATTEMPTS"
 MAX_WALL_CLOCK_S_ENV_VAR = "MERGEGATE_MAX_WALL_CLOCK_S"
 MAX_MODEL_CALLS_ENV_VAR = "MERGEGATE_MAX_MODEL_CALLS"
+CORS_ALLOW_ORIGINS_ENV_VAR = "CORS_ALLOW_ORIGINS"
 
 
 class Settings(BaseModel):
@@ -61,6 +62,17 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
         ),
         max_model_calls=int(env.get(MAX_MODEL_CALLS_ENV_VAR, DEFAULT_MAX_MODEL_CALLS)),
     )
+
+
+def load_cors_allow_origins(env: Mapping[str, str] | None = None) -> list[str]:
+    """Return the explicit, comma-separated browser origins allowed by the API."""
+    if env is None:
+        env = os.environ
+    return [
+        origin.strip()
+        for origin in env.get(CORS_ALLOW_ORIGINS_ENV_VAR, "").split(",")
+        if origin.strip()
+    ]
 
 
 def resolve_budget(

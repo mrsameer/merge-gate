@@ -7,6 +7,9 @@ export default defineConfig({
     proxy: {
       "/api": process.env.MERGEGATE_BACKEND_URL ?? "http://127.0.0.1:8000",
     },
+    allowedHosts: process.env.MERGEGATE_TUNNEL_HOST
+      ? [process.env.MERGEGATE_TUNNEL_HOST]
+      : [],
   },
   test: {
     environment: "jsdom",

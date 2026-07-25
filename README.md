@@ -146,6 +146,45 @@ passing Track B proof or Gemini CLI. Extending the backend image with the target
 repository's test tools is required before claiming a passing containerized
 acceptance run; never describe a missing tool as success.
 
+## OCI + Vercel deployment
+
+Deploy the frontend to Vercel with `frontend` as the project root. Set
+`VITE_API_BASE_URL` to the OCI API address, for example
+`https://api.mergegate.example.com/api`.
+
+On an OCI Ubuntu ARM VM, copy `deploy/oci/.env.example` to
+`deploy/oci/.env`, replace its placeholders, point the domain's DNS A record
+to the VM, open ports 80/443, then run:
+
+```bash
+cd deploy/oci
+docker compose up --build -d
+```
+
+The OCI stack uses Caddy for automatic HTTPS and persists Postgres/Caddy data
+in Docker volumes. Do not deploy the root development `docker-compose.yml`;
+it bind-mounts the source checkout.
+
+## Railway + Vercel deployment
+
+Railway deploys the FastAPI backend from the repository root using
+`railway.toml` and `backend/Dockerfile`. Create a Railway project, select this
+repository, then generate a public domain for the backend service. Railway
+sets `PORT` automatically; the container uses it and exposes `/api/health` as
+its health check. Set `CORS_ALLOW_ORIGINS` on the Railway service to the exact
+Vercel frontend origin (for example `https://merge-gate.vercel.app`). Do not
+use `*` while browser credentials are enabled.
+
+The image includes an isolated, committed copy of `demo-repo`, so the
+scripted demo can run without access to the source checkout. A production
+run against another repository still requires that repository to be cloned or
+connected before it can be selected; do not expose provider keys through the
+frontend.
+
+Deploy the frontend to Vercel with `frontend` as the project root. Set
+`VITE_API_BASE_URL` to the Railway backend URL with `/api` appended, for
+example `https://mergegate-production.up.railway.app/api`.
+
 ## Vertex AI Gemini CLI
 
 The Gemini adapter runs the installed `gemini` CLI headlessly inside each
